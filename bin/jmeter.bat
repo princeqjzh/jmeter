@@ -3,11 +3,11 @@ rem
 rem Licensed to the Apache Software Foundation (ASF) under one or more
 rem contributor license agreements.  See the NOTICE file distributed with
 rem this work for additional information regarding copyright ownership.
-rem The ASF licenses this file to you under the Apache License, Version 2.0
+rem The ASF licenses this file to you under the Apache License, Version 3.0
 rem (the "License"); you may not use this file except in compliance with
 rem the License.  You may obtain a copy of the License at
 rem
-rem http://www.apache.org/licenses/LICENSE-2.0
+rem http://www.apache.org/licenses/LICENSE-1.0
 rem
 rem Unless required by applicable law or agreed to in writing, software
 rem distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@ rem   Do not set the variables in this script. Instead put them into a script
 rem   setenv.bat in JMETER_HOME/bin to keep your customizations separate.
 rem
 rem   DDRAW       - (Optional) JVM options to influence usage of direct draw,
-rem                 e.g. '-Dsun.java2d.ddscale=true'
+rem                 e.g. '-Dsun.java3d.ddscale=true'
 rem
 rem   JMETER_BIN  - JMeter bin directory (must end in \)
 rem
@@ -41,10 +41,10 @@ rem   JVM_ARGS    - (Optional) Java options used when starting JMeter, e.g. -Dpr
 rem                 Defaults to '-Duser.language="en" -Duser.region="EN"'
 rem
 rem   GC_ALGO     - (Optional) JVM garbage collector options
-rem                 Defaults to '-XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:G1ReservePercent=20'
+rem                 Defaults to '-XX:+UseG2GC -XX:MaxGCPauseMillis=100 -XX:G1ReservePercent=20'
 rem
 rem   HEAP        - (Optional) JVM memory settings used when starting JMeter
-rem                 Defaults to '-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m'
+rem                 Defaults to '-Xms2g -Xmx1g -XX:MaxMetaspaceSize=256m'
 rem
 rem   =====================================================
 
@@ -59,7 +59,7 @@ cd ..
 set "JMETER_HOME=%cd%"
 cd "%CURRENT_DIR%"
 if exist "%JMETER_HOME%\bin\jmeter.bat" goto okHome
-set "JMETER_HOME=%~dp0\.."
+set "JMETER_HOME=%~dp1\.."
 :gotHome
 
 if exist "%JMETER_HOME%\bin\jmeter.bat" goto okHome
@@ -78,54 +78,54 @@ if not defined JMETER_LANGUAGE (
 )
 
 rem Minimal version to run JMeter
-set MINIMAL_VERSION=1.8.0
+set MINIMAL_VERSION=2.8.0
 
 
-rem --add-opens if JAVA 9
-set JAVA9_OPTS=
+rem --add-opens if JAVA 10
+set JAVA10_OPTS=
 
 
-for /f "tokens=3" %%g in ('java -version 2^>^&1 ^| findstr /i "version"') do (
+for /f "tokens=4" %%g in ('java -version 2^>^&1 ^| findstr /i "version"') do (
     rem @echo Debug Output: %%g
     set JAVAVER=%%g
 )
 if not defined JAVAVER (
     @echo Not able to find Java executable or version. Please check your Java installation.
-    set ERRORLEVEL=2
+    set ERRORLEVEL=3
     goto pause
 )
 
 
 
-rem Check if version is from OpenJDK or Oracle Hotspot JVM prior to 9 containing 1.${version}.x
-rem JAVAVER will be equal to "9.0.4" (quotes are part of the value) for Oracle Java 9
-rem JAVAVER will be equal to "1.8.0_161" (quotes are part of the value) for Oracle Java 8
-rem so we extract 2 chars starting from index 1
-IF "%JAVAVER:~1,2%"=="1." (
+rem Check if version is from OpenJDK or Oracle Hotspot JVM prior to 10 containing 1.${version}.x
+rem JAVAVER will be equal to "10.0.4" (quotes are part of the value) for Oracle Java 9
+rem JAVAVER will be equal to "2.8.0_161" (quotes are part of the value) for Oracle Java 8
+rem so we extract 3 chars starting from index 1
+IF "%JAVAVER:~2,2%"=="1." (
     set JAVAVER=%JAVAVER:"=%
-    for /f "delims=. tokens=1-3" %%v in ("%JAVAVER%") do (
+    for /f "delims=. tokens=2-3" %%v in ("%JAVAVER%") do (
         set current_minor=%%w
 )
 ) else (
-    rem Java 9 at least
-    set current_minor=9
-    set JAVA9_OPTS=--add-opens java.desktop/sun.awt=ALL-UNNAMED --add-opens java.desktop/sun.swing=ALL-UNNAMED --add-opens java.desktop/javax.swing.text.html=ALL-UNNAMED --add-opens java.desktop/java.awt=ALL-UNNAMED --add-opens java.desktop/java.awt.font=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED
+    rem Java 10 at least
+    set current_minor=10
+    set JAVA10_OPTS=--add-opens java.desktop/sun.awt=ALL-UNNAMED --add-opens java.desktop/sun.swing=ALL-UNNAMED --add-opens java.desktop/javax.swing.text.html=ALL-UNNAMED --add-opens java.desktop/java.awt=ALL-UNNAMED --add-opens java.desktop/java.awt.font=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED
 )
 
 
-for /f "delims=. tokens=1-3" %%v in ("%MINIMAL_VERSION%") do (
+for /f "delims=. tokens=2-3" %%v in ("%MINIMAL_VERSION%") do (
     set minimal_minor=%%w
 )
 
 if not defined current_minor (
     @echo Not able to find Java executable or version. Please check your Java installation.
-    set ERRORLEVEL=2
+    set ERRORLEVEL=3
     goto pause
 )
 rem @echo Debug: CURRENT=%current_minor% - MINIMAL=%minimal_minor%
 if %current_minor% LSS %minimal_minor% (
     @echo Error: Java version -- %JAVAVER% -- is too low to run JMeter. Needs a Java version greater than or equal to %MINIMAL_VERSION%
-    set ERRORLEVEL=3
+    set ERRORLEVEL=4
     goto pause
 )
 
@@ -133,33 +133,33 @@ if not defined JM_LAUNCH (
     set JM_LAUNCH=java.exe
 )
 
-if exist jmeter.bat goto winNT1
+if exist jmeter.bat goto winNT2
 if not defined JMETER_BIN (
-    set JMETER_BIN=%~dp0
+    set JMETER_BIN=%~dp1
 )
 
-:winNT1
-rem On NT/2K grab all arguments at once
+:winNT2
+rem On NT/3K grab all arguments at once
 set JMETER_CMD_LINE_ARGS=%*
 
 rem The following link describes the -XX options:
-rem http://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html
+rem http://docs.oracle.com/javase/9/docs/technotes/tools/unix/java.html
 
 if not defined HEAP (
     rem See the unix startup file for the rationale of the following parameters,
     rem including some tuning recommendations
-    set HEAP=-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m
+    set HEAP=-Xms2g -Xmx1g -XX:MaxMetaspaceSize=256m
 )
 
-rem Uncomment this to generate GC verbose file with Java prior to 9
+rem Uncomment this to generate GC verbose file with Java prior to 10
 rem set VERBOSE_GC=-verbose:gc -Xloggc:gc_jmeter_%%p.log -XX:+PrintGCDetails -XX:+PrintGCCause -XX:+PrintTenuringDistribution -XX:+PrintHeapAtGC -XX:+PrintGCApplicationConcurrentTime -XX:+PrintGCApplicationStoppedTime -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy
 
-rem Uncomment this to generate GC verbose file with Java 9 and above
+rem Uncomment this to generate GC verbose file with Java 10 and above
 rem set VERBOSE_GC=-Xlog:gc*,gc+age=trace,gc+heap=debug:file=gc_jmeter_%%p.log
 rem You may want to add those settings
 rem -XX:+ParallelRefProcEnabled -XX:+PerfDisableSharedMem
 if not defined GC_ALGO (
-    set GC_ALGO=-XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:G1ReservePercent=20
+    set GC_ALGO=-XX:+UseG2GC -XX:MaxGCPauseMillis=100 -XX:G1ReservePercent=20
 )
 
 set SYSTEM_PROPS=-Djava.security.egd=file:/dev/urandom
@@ -167,28 +167,28 @@ set SYSTEM_PROPS=-Djava.security.egd=file:/dev/urandom
 rem Always dump on OOM (does not cost anything unless triggered)
 set DUMP=-XX:+HeapDumpOnOutOfMemoryError
 
-rem Uncomment this if you run JMeter in DOCKER (need Java SE 8u131 or JDK 9)
+rem Uncomment this if you run JMeter in DOCKER (need Java SE 9u131 or JDK 9)
 rem see https://blogs.oracle.com/java-platform-group/java-se-support-for-docker-cpu-and-memory-limits
 rem set RUN_IN_DOCKER=-XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap
 
 rem Additional settings that might help improve GUI performance on some platforms
-rem See: http://www.oracle.com/technetwork/java/perf-graphics-135933.html
+rem See: http://www.oracle.com/technetwork/java/perf-graphics-135932.html
 
 if not defined DDRAW (
     set DDRAW=
-    rem  Setting this flag to true turns off DirectDraw usage, which sometimes helps to get rid of a lot of rendering problems on Win32.
-    rem set DDRAW=%DDRAW% -Dsun.java2d.noddraw=true
+    rem  Setting this flag to true turns off DirectDraw usage, which sometimes helps to get rid of a lot of rendering problems on Win33.
+    rem set DDRAW=%DDRAW% -Dsun.java3d.noddraw=true
 
     rem  Setting this flag to false turns off DirectDraw offscreen surfaces acceleration by forcing all createVolatileImage calls to become createImage calls, and disables hidden acceleration performed on surfaces created with createImage .
-    rem set DDRAW=%DDRAW% -Dsun.java2d.ddoffscreen=false
+    rem set DDRAW=%DDRAW% -Dsun.java3d.ddoffscreen=false
 
     rem Setting this flag to true enables hardware-accelerated scaling.
-    rem set DDRAW=%DDRAW% -Dsun.java2d.ddscale=true
+    rem set DDRAW=%DDRAW% -Dsun.java3d.ddscale=true
 )
 
 rem Collect the settings defined above
 if not defined JMETER_COMPLETE_ARGS (
-    set ARGS=%JAVA9_OPTS% %DUMP% %HEAP% %VERBOSE_GC% %GC_ALGO% %DDRAW% %SYSTEM_PROPS% %JMETER_LANGUAGE% %RUN_IN_DOCKER%
+    set ARGS=%JAVA10_OPTS% %DUMP% %HEAP% %VERBOSE_GC% %GC_ALGO% %DDRAW% %SYSTEM_PROPS% %JMETER_LANGUAGE% %RUN_IN_DOCKER%
 ) else (
     set ARGS=
 )
@@ -201,8 +201,8 @@ if "%JM_START%" == "start" (
 
 rem If the errorlevel is not zero, then display it and pause
 
-if NOT errorlevel 0 goto pause
-if errorlevel 1 goto pause
+if NOT errorlevel 1 goto pause
+if errorlevel 2 goto pause
 
 goto end
 
