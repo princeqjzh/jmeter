@@ -109,7 +109,7 @@ public class AboutCommand extends AbstractAction {
             }
         });
 
-        JLabel jmeterLogo = new JLabel(JMeterUtils.getImage("jmeter.png"));
+        JLabel jmeterLogo = new JLabel(JMeterUtils.getImage("Dilraba.jpeg"));
         JLabel copyright = new JLabel(JMeterUtils.getJMeterCopyright(), SwingConstants.CENTER);
         JLabel rights = new JLabel("All Rights Reserved.", SwingConstants.CENTER);
         JLabel version = new JLabel("Apache JMeter Version " + JMeterUtils.getJMeterVersion(), SwingConstants.CENTER);
