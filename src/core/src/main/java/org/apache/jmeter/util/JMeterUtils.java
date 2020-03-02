@@ -1013,8 +1013,8 @@ public class JMeterUtils implements UnitTestManager {
      * @return the JMeter version string
      */
     public static String getJMeterVersion() {
-//        return JMeterVersion.getVERSION();
-        return "迪丽热巴 ~ 特别版";
+        String versionNo =  JMeterVersion.getVERSION();
+        return "迪丽热巴 ~ 特别版 [" + versionNo + "]";
     }
 
     /**
