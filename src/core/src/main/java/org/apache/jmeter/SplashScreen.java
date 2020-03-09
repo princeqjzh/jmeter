@@ -42,7 +42,7 @@ public class SplashScreen extends JWindow {
      * Constructor
      */
     public SplashScreen() {
-        imageLabel.setIcon(JMeterUtils.getImage("jmeter.png"));
+        imageLabel.setIcon(JMeterUtils.getImage("Dilraba.jpeg"));
         imageLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
         setLayout(borderLayout);
         add(imageLabel, BorderLayout.CENTER);
