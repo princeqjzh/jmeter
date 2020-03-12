@@ -196,4 +196,6 @@ else
     ARGS=""
 fi
 
+JVM_ARGS="-Xbootclasspath/p:/Users/jizhiqian/workspace/studio/jmeter/bin/alpn-boot-8.1.13.v20181017.jar"
+
 "$JAVA_HOME/bin/java" $ARGS $JVM_ARGS $JMETER_OPTS -jar "$PRGDIR/ApacheJMeter.jar" "$@"
