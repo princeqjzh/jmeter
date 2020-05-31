@@ -28,29 +28,34 @@ import java.util.Set;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.jmeter.config.ConfigTestElement;
 import org.apache.jmeter.engine.util.ConfigMergabilityIndicator;
+import org.apache.jmeter.gui.TestElementMetadata;
 import org.apache.jmeter.protocol.bolt.config.BoltConnectionElement;
 import org.apache.jmeter.samplers.Entry;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.samplers.Sampler;
 import org.apache.jmeter.testbeans.TestBean;
 import org.apache.jmeter.testelement.TestElement;
-import org.neo4j.driver.v1.Driver;
-import org.neo4j.driver.v1.Record;
-import org.neo4j.driver.v1.Session;
-import org.neo4j.driver.v1.StatementResult;
-import org.neo4j.driver.v1.exceptions.Neo4jException;
-import org.neo4j.driver.v1.summary.ResultSummary;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.Session;
+import org.neo4j.driver.exceptions.Neo4jException;
+import org.neo4j.driver.summary.ResultSummary;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 
+@TestElementMetadata(labelResource = "displayName")
 public class BoltSampler extends AbstractBoltTestElement implements Sampler, TestBean, ConfigMergabilityIndicator {
 
     private static final Set<String> APPLICABLE_CONFIG_CLASSES = new HashSet<>(
             Collections.singletonList("org.apache.jmeter.config.gui.SimpleConfigGui")); // $NON-NLS-1$
 
-    private static final ObjectReader objectMapper = new ObjectMapper().readerFor(new TypeReference<HashMap<String, Object>>() {});
+    // Enables to initialize object mapper on demand
+    private static class Holder {
+        private static final ObjectReader OBJECT_READER = new ObjectMapper().readerFor(new TypeReference<HashMap<String, Object>>() {});
+    }
 
     @Override
     public SampleResult sample(Entry e) {
@@ -97,7 +102,7 @@ public class BoltSampler extends AbstractBoltTestElement implements Sampler, Tes
 
     private String execute(Driver driver, String cypher, Map<String, Object> params) {
         try (Session session = driver.session()) {
-            StatementResult statementResult = session.run(cypher, params);
+            Result statementResult = session.run(cypher, params);
             return response(statementResult);
         }
     }
@@ -116,7 +121,7 @@ public class BoltSampler extends AbstractBoltTestElement implements Sampler, Tes
 
     private Map<String, Object> getParamsAsMap() throws IOException {
         if (getParams() != null && getParams().length() > 0) {
-            return objectMapper.readValue(getParams());
+            return Holder.OBJECT_READER.readValue(getParams());
         } else {
             return Collections.emptyMap();
         }
@@ -132,10 +137,10 @@ public class BoltSampler extends AbstractBoltTestElement implements Sampler, Tes
         return request.toString();
     }
 
-    private String response(StatementResult result) {
+    private String response(Result result) {
         StringBuilder response = new StringBuilder();
         response.append("\nSummary:");
-        ResultSummary summary = result.summary();
+        ResultSummary summary = result.consume();
         response.append("\nConstraints Added: ")
                 .append(summary.counters().constraintsAdded())
                 .append("\nConstraints Removed: ")

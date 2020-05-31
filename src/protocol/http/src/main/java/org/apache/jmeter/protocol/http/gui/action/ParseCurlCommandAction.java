@@ -47,6 +47,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.tree.TreePath;
 
 import org.apache.commons.io.FileUtils;
@@ -99,6 +100,7 @@ import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jmeter.visualizers.ViewResultsFullVisualizer;
 import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.gui.ComponentUtil;
+import org.apache.jorphan.gui.JMeterUIDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -146,7 +148,7 @@ public class ParseCurlCommandAction extends AbstractAction implements MenuCreato
         Container contentPane = messageDialog.getContentPane();
         contentPane.setLayout(new BorderLayout());
         statusText = new JLabel("",JLabel.CENTER);
-        statusText.setForeground(Color.RED);
+        statusText.setForeground(UIManager.getColor(JMeterUIDefaults.LABEL_ERROR_FOREGROUND));
         contentPane.add(statusText, BorderLayout.NORTH);
         cURLCommandTA = JSyntaxTextArea.getInstance(20, 80, false);
         cURLCommandTA.setCaretPosition(0);
@@ -358,12 +360,13 @@ public class ParseCurlCommandAction extends AbstractAction implements MenuCreato
     }
 
     /**
-     * Create Cookie Manager
+     * Configures a given Cookie Manager
      *
-     * @param request {@link Request}
-     * @return {@link CookieManager} element
+     * @param cookieManager the manager to configure
+     * @param request to copy information about cookies from
+     * @returns the configured cookie manager
      */
-    private void createCookieManager(CookieManager cookieManager,Request request) {
+    private void createCookieManager(CookieManager cookieManager, Request request) {
         cookieManager.setProperty(TestElement.GUI_CLASS, CookiePanel.class.getName());
         cookieManager.setProperty(TestElement.NAME, "HTTP CookieManager");
         cookieManager.setProperty(TestElement.COMMENTS,
@@ -373,7 +376,7 @@ public class ParseCurlCommandAction extends AbstractAction implements MenuCreato
                 cookieManager.getCookies().addItem(c);
             }
         }
-        if (!request.getCookieInHeaders(request.getUrl()).isEmpty()&&uploadCookiesCheckBox.isSelected()) {
+        if (!request.getCookieInHeaders(request.getUrl()).isEmpty() && uploadCookiesCheckBox.isSelected()) {
             for (Cookie c : request.getCookieInHeaders(request.getUrl())) {
                 cookieManager.getCookies().addItem(c);
             }
@@ -640,7 +643,7 @@ public class ParseCurlCommandAction extends AbstractAction implements MenuCreato
                                 ex.getMessage(), ex);
                         statusText.setText(
                                 MessageFormat.format(JMeterUtils.getResString("curl_create_failure"), ex.getMessage()));
-                        statusText.setForeground(Color.RED);
+                        statusText.setForeground(UIManager.getColor(JMeterUIDefaults.LABEL_ERROR_FOREGROUND));
                         break;
                     }
                 }
@@ -648,7 +651,7 @@ public class ParseCurlCommandAction extends AbstractAction implements MenuCreato
                 LOGGER.error("Error creating test plan from cURL command list:{}", commandsList, ex);
                 statusText.setText(
                         MessageFormat.format(JMeterUtils.getResString("curl_create_failure"), ex.getMessage()));
-                statusText.setForeground(Color.RED);
+                statusText.setForeground(UIManager.getColor(JMeterUIDefaults.LABEL_ERROR_FOREGROUND));
             }
         }
     }

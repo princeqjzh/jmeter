@@ -127,6 +127,7 @@ project("jms") {
         implementation("commons-io:commons-io") {
             because("IOUtils")
         }
+        implementation("com.miglayout:miglayout-swing")
     }
 }
 
@@ -139,6 +140,7 @@ project("junit") {
         implementation("org.exparity:hamcrest-date") {
             because("hamcrest-date.jar was historically shipped with JMeter")
         }
+        implementation("com.miglayout:miglayout-swing")
     }
 }
 

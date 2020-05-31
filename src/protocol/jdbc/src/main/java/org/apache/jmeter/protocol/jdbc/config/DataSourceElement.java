@@ -29,6 +29,7 @@ import java.util.Set;
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jmeter.config.ConfigElement;
+import org.apache.jmeter.gui.TestElementMetadata;
 import org.apache.jmeter.testbeans.TestBean;
 import org.apache.jmeter.testbeans.TestBeanHelper;
 import org.apache.jmeter.testelement.AbstractTestElement;
@@ -39,6 +40,7 @@ import org.apache.jorphan.util.JOrphanUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@TestElementMetadata(labelResource = "displayName")
 public class DataSourceElement extends AbstractTestElement
     implements ConfigElement, TestStateListener, TestBean {
     private static final Logger log = LoggerFactory.getLogger(DataSourceElement.class);
@@ -112,8 +114,8 @@ public class DataSourceElement extends AbstractTestElement
         TestBeanHelper.prepare(this);
         JMeterVariables variables = getThreadContext().getVariables();
         String poolName = getDataSource();
-        if(JOrphanUtils.isBlank(poolName)) {
-            throw new IllegalArgumentException("Variable Name must not be empty for element:"+getName());
+        if (JOrphanUtils.isBlank(poolName)) {
+            throw new IllegalArgumentException("Name for DataSoure must not be empty in " + getName());
         } else if (variables.getObject(poolName) != null) {
             log.error("JDBC data source already defined for: {}", poolName);
         } else {

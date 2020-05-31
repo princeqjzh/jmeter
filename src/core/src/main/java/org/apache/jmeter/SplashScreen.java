@@ -18,7 +18,12 @@
 package org.apache.jmeter;
 
 import java.awt.BorderLayout;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 
+import javax.swing.Icon;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JProgressBar;
 import javax.swing.JWindow;
@@ -26,29 +31,37 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 import org.apache.jmeter.util.JMeterUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.github.weisj.darklaf.icons.ThemedSVGIcon;
 
 /**
  * Splash Screen
  * @since 3.2
  */
 public class SplashScreen extends JWindow {
+    private static final Logger log = LoggerFactory.getLogger(SplashScreen.class);
 
     private static final long serialVersionUID = 1L;
-    private BorderLayout borderLayout = new BorderLayout();
-    private JLabel imageLabel = new JLabel();
-    private JProgressBar progressBar = new JProgressBar(0, 100);
+    private final JProgressBar progressBar = new JProgressBar(0, 100);
 
     /**
      * Constructor
      */
     public SplashScreen() {
-        imageLabel.setIcon(JMeterUtils.getImage("Dilraba.jpeg"));
-        imageLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        setLayout(borderLayout);
-        add(imageLabel, BorderLayout.CENTER);
+        setLayout(new BorderLayout());
+        add(loadLogo(), BorderLayout.CENTER);
         add(progressBar, BorderLayout.SOUTH);
         pack();
         setLocationRelativeTo(null);
+    }
+
+    public static JComponent loadLogo() {
+        JLabel imageLabel = new JLabel();
+        imageLabel.setIcon(JMeterUtils.getImage("Dilraba.jpeg"));
+        imageLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        return imageLabel;
     }
 
     /**

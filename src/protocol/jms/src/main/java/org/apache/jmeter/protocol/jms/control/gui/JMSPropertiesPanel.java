@@ -122,7 +122,7 @@ public class JMSPropertiesPanel extends JPanel implements ActionListener {
      */
     private void init() {// called from ctor, so must not be overridable
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
+        setBorder(BorderFactory.createEmptyBorder(10, 0, 5, 0));
         add(createPropertiesPanel(), BorderLayout.CENTER);
     }
 
@@ -194,7 +194,7 @@ public class JMSPropertiesPanel extends JPanel implements ActionListener {
         mechanismColumn.setCellEditor(new TypeCellEditor());
 
         JPanel panel = new JPanel(new BorderLayout(0, 5));
-        panel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(),
+        panel.setBorder(BorderFactory.createTitledBorder(
                 JMeterUtils.getResString("jms_props"))); //$NON-NLS-1$
         panel.add(GuiUtils.emptyBorder(new JScrollPane(jmsPropertiesTable)));
         panel.add(createButtonPanel(), BorderLayout.SOUTH);
