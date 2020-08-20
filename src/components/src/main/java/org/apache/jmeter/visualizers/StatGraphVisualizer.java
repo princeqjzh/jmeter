@@ -101,10 +101,12 @@ import org.slf4j.LoggerFactory;
 public class StatGraphVisualizer extends AbstractVisualizer implements Clearable, ActionListener {
     private static final long serialVersionUID = 242L;
 
+    private static final String PCT0_LABEL = JMeterUtils.getPropDefault("aggregate_rpt_pct0", "10");
     private static final String PCT1_LABEL = JMeterUtils.getPropDefault("aggregate_rpt_pct1", "90");
     private static final String PCT2_LABEL = JMeterUtils.getPropDefault("aggregate_rpt_pct2", "95");
     private static final String PCT3_LABEL = JMeterUtils.getPropDefault("aggregate_rpt_pct3", "99");
 
+    private static final Float PCT0_VALUE = Float.parseFloat(PCT0_LABEL) / 100;
     private static final Float PCT1_VALUE = Float.parseFloat(PCT1_LABEL) / 100;
     private static final Float PCT2_VALUE = Float.parseFloat(PCT2_LABEL) / 100;
     private static final Float PCT3_VALUE = Float.parseFloat(PCT3_LABEL) / 100;
@@ -115,6 +117,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
             "sampler_label",                        //$NON-NLS-1$
             "aggregate_report_count",               //$NON-NLS-1$
             "average",                              //$NON-NLS-1$
+            "aggregate_report_xx_pct0_line",        //$NON-NLS-1$
             "aggregate_report_median",              //$NON-NLS-1$
             "aggregate_report_xx_pct1_line",        //$NON-NLS-1$
             "aggregate_report_xx_pct2_line",        //$NON-NLS-1$
@@ -129,6 +132,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
 
     private static final String[] GRAPH_COLUMNS = {
             "average",                          //$NON-NLS-1$
+            "aggregate_report_xx_pct0_line",    //$NON-NLS-1$
             "aggregate_report_median",          //$NON-NLS-1$
             "aggregate_report_xx_pct1_line",    //$NON-NLS-1$
             "aggregate_report_xx_pct2_line",    //$NON-NLS-1$
@@ -272,6 +276,13 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
         final Color purple = new Color(202, 10, 232);
         eltList.add(new BarGraph(JMeterUtils.getResString("average"), true,
                 red));
+        eltList.add(
+                new BarGraph(
+                        MessageFormat.format(
+                                JMeterUtils.getResString(
+                                        "aggregate_report_xx_pct0_line"),
+                                PCT0_LABEL),
+                        false, purple));
         eltList.add(new BarGraph(
                 JMeterUtils.getResString("aggregate_report_median"), false,
                 blue));
@@ -312,6 +323,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
             null,
             null,
             null,
+            new Object[]{PCT0_LABEL},
             new Object[]{PCT1_LABEL},
             new Object[]{PCT2_LABEL},
             new Object[]{PCT3_LABEL},
@@ -327,6 +339,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
         return new Object[][] {
             null,
             null,
+            new Object[] { PCT0_LABEL },
             new Object[] { PCT1_LABEL },
             new Object[] { PCT2_LABEL },
             new Object[] { PCT3_LABEL },
@@ -359,6 +372,8 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
                 new Functor("getLabel"),                    //$NON-NLS-1$
                 new Functor("getCount"),                    //$NON-NLS-1$
                 new Functor("getMeanAsNumber"),                //$NON-NLS-1$
+                new Functor("getPercentPoint",                //$NON-NLS-1$
+                        new Object[] { PCT0_VALUE }),
                 new Functor("getMedian"),                    //$NON-NLS-1$
                 new Functor("getPercentPoint",                //$NON-NLS-1$
                         new Object[] { PCT1_VALUE }),
@@ -372,9 +387,9 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
                 new Functor("getRate"),                        //$NON-NLS-1$
                 new Functor("getKBPerSecond"),                 //$NON-NLS-1$
                 new Functor("getSentKBPerSecond") },            //$NON-NLS-1$
-                new Functor[] { null, null, null, null, null, null, null, null, null, null, null, null, null },
+                new Functor[] { null, null, null, null, null, null, null, null, null, null, null, null, null, null },
                 new Class[] { String.class, Long.class, Long.class, Long.class, Long.class,
-                            Long.class, Long.class, Long.class, Long.class, Double.class,
+                            Long.class, Long.class, Long.class, Long.class, Long.class, Double.class,
                             Double.class, Double.class, Double.class});
     }
 
@@ -384,6 +399,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
             null, // Label
             null, // count
             null, // Mean
+            null, // 10%
             null, // median
             null, // 90%
             null, // 95%
@@ -403,6 +419,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
             null, // Label
             null, // count
             null, // Mean
+            null, // 10%
             null, // median
             null, // 90%
             null, // 95%

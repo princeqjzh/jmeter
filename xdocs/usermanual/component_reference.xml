@@ -2961,6 +2961,7 @@ See the <complink name="Summary Report"/> for a similar Listener that does not s
 <note>
 Starting with JMeter 2.12, you can configure the 3 percentile values you want to compute, this can be done by setting properties:
 <ul>
+    <li><code>aggregate_rpt_pct0</code>: defaults to 10<sup>th</sup> <a href="glossary.html#Percentile">percentile</a></li>
     <li><code>aggregate_rpt_pct1</code>: defaults to 90<sup>th</sup> <a href="glossary.html#Percentile">percentile</a></li>
     <li><code>aggregate_rpt_pct2</code>: defaults to 95<sup>th</sup> <a href="glossary.html#Percentile">percentile</a></li>
     <li><code>aggregate_rpt_pct3</code>: defaults to 99<sup>th</sup> <a href="glossary.html#Percentile">percentile</a></li>

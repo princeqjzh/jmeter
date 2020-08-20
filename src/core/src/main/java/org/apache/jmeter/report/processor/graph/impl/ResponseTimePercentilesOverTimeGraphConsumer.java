@@ -43,6 +43,8 @@ import org.apache.jmeter.util.JMeterUtils;
  */
 public class ResponseTimePercentilesOverTimeGraphConsumer
         extends AbstractOverTimeGraphConsumer {
+    private static final String PCT0_LABEL = JMeterUtils.getPropDefault(
+            "aggregate_rpt_pct0", "10");
     private static final String PCT1_LABEL = JMeterUtils.getPropDefault(
             "aggregate_rpt_pct1", "90");
     private static final String PCT2_LABEL = JMeterUtils.getPropDefault(
@@ -66,6 +68,8 @@ public class ResponseTimePercentilesOverTimeGraphConsumer
         groupInfos.put("aggregate_report_min", createMinGroupInfo());
         groupInfos.put("aggregate_report_max", createMaxGroupInfo());
         groupInfos.put("aggregate_report_median", createMedianGroupInfo());
+        groupInfos.put("aggregate_rpt_pct0",
+                createPercentileGroupInfo("aggregate_rpt_pct0", PCT0_LABEL));
         groupInfos.put("aggregate_rpt_pct1",
                 createPercentileGroupInfo("aggregate_rpt_pct1", PCT1_LABEL));
         groupInfos.put("aggregate_rpt_pct2",

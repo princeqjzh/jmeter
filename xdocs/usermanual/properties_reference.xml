@@ -1093,6 +1093,12 @@ JMETER-SERVER</source>
 </section>
 <section name="&sect-num;.27 Aggregate Report and Aggregate Graph - configuration" anchor="aggregate_report_graph">
 <properties>
+<property name="aggregate_rpt_pct0">
+    Percentiles to display in reports.<br/>
+    Given as a float value between <code>0</code> and <code>100</code> (means percent).<br/>
+    First percentile to display.<br/>
+    Defaults to: <code>10</code>
+</property>
 <property name="aggregate_rpt_pct1">
     Percentiles to display in reports.<br/>
     Given as a float value between <code>0</code> and <code>100</code> (means percent).<br/>

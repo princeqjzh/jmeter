@@ -44,6 +44,8 @@ import org.apache.jmeter.util.JMeterUtils;
  */
 public class StatisticsSummaryConsumer extends
         AbstractSummaryConsumer<StatisticsSummaryData> {
+    private static final String PCT0_LABEL = JMeterUtils.getPropDefault(
+            "aggregate_rpt_pct0", "10");
     private static final String PCT1_LABEL = JMeterUtils.getPropDefault(
             "aggregate_rpt_pct1", "90");
     private static final String PCT2_LABEL = JMeterUtils.getPropDefault(
@@ -51,6 +53,7 @@ public class StatisticsSummaryConsumer extends
     private static final String PCT3_LABEL = JMeterUtils.getPropDefault(
             "aggregate_rpt_pct3", "99");
 
+    private static final double PERCENTILE_INDEX0 = new BigDecimal(PCT0_LABEL).doubleValue();
     private static final double PERCENTILE_INDEX1 = new BigDecimal(PCT1_LABEL).doubleValue();
     private static final double PERCENTILE_INDEX2 = new BigDecimal(PCT2_LABEL).doubleValue();
     private static final double PERCENTILE_INDEX3 = new BigDecimal(PCT3_LABEL).doubleValue();
@@ -81,6 +84,7 @@ public class StatisticsSummaryConsumer extends
         }
 
         long elapsedTime = sample.getElapsedTime();
+        data.getPercentile0().addValue(elapsedTime);
         data.getPercentile1().addValue(elapsedTime);
         data.getPercentile2().addValue(elapsedTime);
         data.getPercentile3().addValue(elapsedTime);
@@ -107,14 +111,14 @@ public class StatisticsSummaryConsumer extends
         SummaryInfo overallInfo = getOverallInfo();
         StatisticsSummaryData overallData = overallInfo.getData();
         if (overallData == null) {
-            overallData = new StatisticsSummaryData(PERCENTILE_INDEX1,
+            overallData = new StatisticsSummaryData(PERCENTILE_INDEX0, PERCENTILE_INDEX1,
                             PERCENTILE_INDEX2, PERCENTILE_INDEX3);
             overallInfo.setData(overallData);
         }
 
         StatisticsSummaryData data = info.getData();
         if (data == null) {
-            data = new StatisticsSummaryData(PERCENTILE_INDEX1,
+            data = new StatisticsSummaryData(PERCENTILE_INDEX0, PERCENTILE_INDEX1,
                         PERCENTILE_INDEX2, PERCENTILE_INDEX3);
             info.setData(data);
         }
@@ -146,6 +150,7 @@ public class StatisticsSummaryConsumer extends
         result.addResult(new ValueResultData(data.getMean().getResult()));
         result.addResult(new ValueResultData(data.getMin()));
         result.addResult(new ValueResultData(data.getMax()));
+        result.addResult(new ValueResultData(data.getPercentile0().getResult()));
         result.addResult(new ValueResultData(data.getMedian().getResult()));
         result.addResult(new ValueResultData(data.getPercentile1().getResult()));
         result.addResult(new ValueResultData(data.getPercentile2().getResult()));
@@ -190,6 +195,7 @@ public class StatisticsSummaryConsumer extends
                 JMeterUtils.getResString("reportgenerator_summary_statistics_mean")));
         titles.addResult(new ValueResultData(JMeterUtils.getResString("reportgenerator_summary_statistics_min")));
         titles.addResult(new ValueResultData(JMeterUtils.getResString("reportgenerator_summary_statistics_max")));
+        titles.addResult(new ValueResultData(formatPercentile(PCT0_LABEL)));
         titles.addResult(new ValueResultData(JMeterUtils.getResString("reportgenerator_summary_statistics_median")));
         titles.addResult(new ValueResultData(formatPercentile(PCT1_LABEL)));
         titles.addResult(new ValueResultData(formatPercentile(PCT2_LABEL)));

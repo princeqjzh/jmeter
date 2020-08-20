@@ -97,6 +97,9 @@ public class ResponseTimePerSampleGraphConsumer extends AbstractGraphConsumer {
     protected Map<String, GroupInfo> createGroupInfos() {
         HashMap<String, GroupInfo> groupInfos = new HashMap<>(6);
 
+        groupInfos.put("aggregate_rpt_pct0",
+                createGroupInfo("aggregate_rpt_pct0", 10));
+
         groupInfos.put("aggregate_rpt_pct1",
                 createGroupInfo("aggregate_rpt_pct1", 90));
 

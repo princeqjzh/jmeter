@@ -4358,6 +4358,7 @@ jmeter.save.saveservice.connect_time=true
 <p>The listeners Aggregate Graph and Aggregate Report previously showed only the 90 percentile (historical behavior), the 95 percentile and the 99 percentile have been added and are customizable.
 To setup the percentiles value you want, add to user.properties:<br/>
 <code>
+aggregate_rpt_pct0=10<br/>
 aggregate_rpt_pct1=90<br/>
 aggregate_rpt_pct2=95<br/>
 aggregate_rpt_pct3=99

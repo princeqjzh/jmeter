@@ -26,6 +26,7 @@ class ResponseTimePercentilesOverTimeGraphConsumerSpec extends JMeterSpec {
     static def EXPECTED_KEYS =
             ['aggregate_report_min',
              'aggregate_report_max',
+             'aggregate_rpt_pct0',
              'aggregate_rpt_pct1',
              'aggregate_rpt_pct2',
              'aggregate_rpt_pct3',
