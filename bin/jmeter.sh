@@ -95,6 +95,8 @@ MINIMAL_VERSION=8
 # Check if version is from OpenJDK or Oracle Hotspot JVM prior to 9 containing 1.${version}.x
 CURRENT_VERSION=`"${JAVA_HOME}/bin/java" -version 2>&1 | awk -F'"' '/version/ {gsub("^1[.]", "", $2); gsub("[^0-9].*$", "", $2); print $2}'`
 
+echo "CURRENT_VERSION = $CURRENT_VERSION"
+
 # Check if Java is present and the minimal version requirement
 if [ "$CURRENT_VERSION" -gt "$MINIMAL_VERSION" ]; then
     JAVA9_OPTS="--add-opens java.desktop/sun.awt=ALL-UNNAMED --add-opens java.desktop/javax.swing.text.html=ALL-UNNAMED --add-opens java.desktop/sun.swing=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED"
@@ -104,6 +106,8 @@ fi
 JMETER_COMPLETE_ARGS=true
 
 # add the Java9 args before the user given ones
+# JVM_ARGS="-Xms512m -Xmx2048m -XX:NewSize=128m -XX:MaxNewSize=1024m -Xbootclasspath/p:/Users/jizhiqian/workspace/studio/jmeter/bin/alpn-boot-8.1.13.v20181017.jar"
+# JVM_ARGS="-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=61958"
 JVM_ARGS="$JAVA9_OPTS $JVM_ARGS"
 export JVM_ARGS JMETER_COMPLETE_ARGS
 
