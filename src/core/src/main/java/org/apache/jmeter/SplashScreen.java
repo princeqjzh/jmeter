@@ -59,7 +59,7 @@ public class SplashScreen extends JWindow {
 
     public static JComponent loadLogo() {
         JLabel imageLabel = new JLabel();
-        imageLabel.setIcon(JMeterUtils.getImage("Dilraba.jpeg"));
+        imageLabel.setIcon(JMeterUtils.getImage(JMeterUtils.getDilraba()));
         imageLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
         return imageLabel;
     }

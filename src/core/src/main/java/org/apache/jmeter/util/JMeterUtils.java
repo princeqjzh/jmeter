@@ -30,16 +30,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.MissingResourceException;
-import java.util.Properties;
-import java.util.ResourceBundle;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -149,6 +140,16 @@ public class JMeterUtils implements UnitTestManager {
         loadJMeterProperties(file);
         initLocale();
         return appProperties;
+    }
+
+    public static final String getDilraba(){
+        List<String> images = new ArrayList<>();
+        images.add("Dilraba.jpeg");
+        images.add("Dilraba2.jpeg");
+        images.add("Dilraba3.jpeg");
+        images.add("Dilraba4.jpeg");
+        images.add("Dilraba5.jpeg");
+        return images.get(new Random().nextInt(images.size()));
     }
 
     /**
