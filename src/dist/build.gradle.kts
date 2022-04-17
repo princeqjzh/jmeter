@@ -19,7 +19,9 @@ import com.github.vlsi.gradle.crlf.CrLfSpec
 import com.github.vlsi.gradle.crlf.LineEndings
 import com.github.vlsi.gradle.git.FindGitAttributes
 import com.github.vlsi.gradle.git.dsl.gitignore
+import com.github.vlsi.gradle.properties.dsl.props
 import org.gradle.api.internal.TaskOutputsInternal
+import kotlin.math.absoluteValue
 
 plugins {
     id("com.github.vlsi.crlf")
@@ -27,25 +29,26 @@ plugins {
 }
 
 var jars = arrayOf(
-        ":src:bshclient",
-        ":src:launcher",
-        ":src:components",
-        ":src:core",
-        // ":src:examples",
-        ":src:functions",
-        ":src:jorphan",
-        ":src:protocol:bolt",
-        ":src:protocol:ftp",
-        ":src:protocol:http",
-        ":src:protocol:java",
-        ":src:protocol:jdbc",
-        ":src:protocol:jms",
-        ":src:protocol:junit",
-        ":src:protocol:ldap",
-        ":src:protocol:mail",
-        ":src:protocol:mongodb",
-        ":src:protocol:native",
-        ":src:protocol:tcp")
+    ":src:bshclient",
+    ":src:launcher",
+    ":src:components",
+    ":src:core",
+    // ":src:examples",
+    ":src:functions",
+    ":src:jorphan",
+    ":src:protocol:bolt",
+    ":src:protocol:ftp",
+    ":src:protocol:http",
+    ":src:protocol:java",
+    ":src:protocol:jdbc",
+    ":src:protocol:jms",
+    ":src:protocol:junit",
+    ":src:protocol:ldap",
+    ":src:protocol:mail",
+    ":src:protocol:mongodb",
+    ":src:protocol:native",
+    ":src:protocol:tcp"
+)
 
 // isCanBeConsumed = false ==> other modules must not use the configuration as a dependency
 val buildDocs by configurations.creating {
@@ -64,12 +67,17 @@ val srcLicense by configurations.creating {
     isCanBeConsumed = false
 }
 
+val allTestClasses by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+}
+
 // Note: you can inspect final classpath (list of jars in the binary distribution)  via
 // gw dependencies --configuration runtimeClasspath
 dependencies {
     for (p in jars) {
         api(project(p))
-        testCompile(project(p, "testClasses"))
+        allTestClasses(project(p, "testClasses"))
     }
 
     binLicense(project(":src:licenses", "binLicense"))
@@ -80,18 +88,17 @@ dependencies {
     buildDocs(platform(project(":src:bom")))
     buildDocs("org.apache.velocity:velocity")
     buildDocs("commons-lang:commons-lang")
-    buildDocs("commons-collections:commons-collections")
+    buildDocs("org.apache.commons:commons-collections4")
     buildDocs("org.jdom:jdom")
 }
 
-tasks.named(BasePlugin.CLEAN_TASK_NAME).configure {
-    doLast {
-        // createDist can't yet remove outdated jars (e.g. when dependency is updated to a newer version)
-        // so we enhance "clean" task to kill the jars
-        delete(fileTree("$rootDir/bin") { include("ApacheJMeter.jar") })
-        delete(fileTree("$rootDir/lib") { include("*.jar") })
-        delete(fileTree("$rootDir/lib/ext") { include("ApacheJMeter*.jar") })
-    }
+tasks.clean {
+    // copyLibs uses Sync task, so it can't predict all the possible output files (e.g. from previous executions)
+    // So we register patterns to remove explicitly
+    delete(fileTree("$rootDir/bin") { include("ApacheJMeter.jar") })
+    delete(fileTree("$rootDir/lib") { include("*.jar") })
+    delete(fileTree("$rootDir/lib/ext") { include("ApacheJMeter*.jar") })
+    delete(fileTree("$rootDir/lib/junit") { include("test.jar") })
 }
 
 // Libs are populated dynamically since we can't get the full set of dependencies
@@ -140,6 +147,91 @@ val populateLibs by tasks.registering {
             }
         }
     }
+}
+
+val updateExpectedJars by props()
+
+val verifyReleaseDependencies by tasks.registering {
+    description = "Verifies if binary release archive contains the expected set of external jars"
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+
+    dependsOn(configurations.runtimeClasspath)
+    val expectedLibs = file("src/dist/expected_release_jars.csv")
+    inputs.file(expectedLibs)
+    val actualLibs = File(buildDir, "dist/expected_release_jars.csv")
+    outputs.file(actualLibs)
+    doLast {
+        val caseInsensitive: Comparator<String> = compareBy(String.CASE_INSENSITIVE_ORDER, { it })
+
+        val deps = configurations.runtimeClasspath.get().resolvedConfiguration.resolvedArtifacts
+        val libs = deps.asSequence()
+            .filter {
+                val compId = it.id.componentIdentifier
+                compId !is ProjectComponentIdentifier || !compId.build.isCurrentBuild
+            }
+            .map { it.file.name to it.file.length() }
+            .sortedWith(compareBy(caseInsensitive) { it.first })
+            .associate { it }
+
+        val expected = expectedLibs.readLines().asSequence()
+            .filter { "," in it }
+            .map {
+                val (length, name) = it.split(",", limit = 2)
+                name to length.toLong()
+            }
+            .associate { it }
+
+        if (libs == expected) {
+            return@doLast
+        }
+
+        val sb = StringBuilder()
+        sb.append("External dependencies differ (you could update ${expectedLibs.relativeTo(rootDir)} if you run $path -PupdateExpectedJars):")
+
+        val sizeBefore = expected.values.sum()
+        val sizeAfter = libs.values.sum()
+        if (sizeBefore != sizeAfter) {
+            sb.append("\n  $sizeBefore => $sizeAfter bytes")
+            sb.append(" (${if (sizeAfter > sizeBefore) "+" else "-"}${(sizeAfter - sizeBefore).absoluteValue} byte")
+            if ((sizeAfter - sizeBefore).absoluteValue > 1) {
+                sb.append("s")
+            }
+            sb.append(")")
+        }
+        if (libs.size != expected.size) {
+            sb.append("\n  ${expected.size} => ${libs.size} files")
+            sb.append(" (${if (libs.size > expected.size) "+" else "-"}${(libs.size - expected.size).absoluteValue})")
+        }
+        sb.appendln()
+        for (dep in (libs.keys + expected.keys).sortedWith(caseInsensitive)) {
+            val old = expected[dep]
+            val new = libs[dep]
+            if (old == new) {
+                continue
+            }
+            sb.append("\n")
+            if (old != null) {
+                sb.append("-").append(old.toString().padStart(8))
+            } else {
+                sb.append("+").append(new.toString().padStart(8))
+            }
+            sb.append(" ").append(dep)
+        }
+        val newline = System.getProperty("line.separator")
+        actualLibs.writeText(
+            libs.map { "${it.value},${it.key}" }.joinToString(newline, postfix = newline)
+        )
+        if (updateExpectedJars) {
+            println("Updating ${expectedLibs.relativeTo(rootDir)}")
+            actualLibs.copyTo(expectedLibs, overwrite = true)
+        } else {
+            throw GradleException(sb.toString())
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(verifyReleaseDependencies)
 }
 
 // This adds dependency on "populateLibs" task
@@ -240,28 +332,34 @@ fun createAnakiaTask(
     return tasks.register(taskName) {
         inputs.file("$baseDir/$style")
         inputs.file("$baseDir/$projectFile")
-        inputs.files(fileTree(baseDir) {
-            include(*includes)
-            exclude(*excludes)
-        })
+        inputs.files(
+            fileTree(baseDir) {
+                include(*includes)
+                exclude(*excludes)
+            }
+        )
         inputs.property("extension", extension)
         outputs.dir(outputDir)
         dependsOn(prepareProps)
 
         doLast {
             ant.withGroovyBuilder {
-                "taskdef"("name" to "anakia",
-                        "classname" to "org.apache.velocity.anakia.AnakiaTask",
-                        "classpath" to buildDocs.asPath)
-                "anakia"("basedir" to baseDir,
-                        "destdir" to outputDir,
-                        "extension" to extension,
-                        "style" to style,
-                        "projectFile" to projectFile,
-                        "excludes" to excludes.joinToString(" "),
-                        "includes" to includes.joinToString(" "),
-                        "lastModifiedCheck" to "true",
-                        "velocityPropertiesFile" to prepareProps.get().outputs.files.singleFile)
+                "taskdef"(
+                    "name" to "anakia",
+                    "classname" to "org.apache.velocity.anakia.AnakiaTask",
+                    "classpath" to buildDocs.asPath
+                )
+                "anakia"(
+                    "basedir" to baseDir,
+                    "destdir" to outputDir,
+                    "extension" to extension,
+                    "style" to style,
+                    "projectFile" to projectFile,
+                    "excludes" to excludes.joinToString(" "),
+                    "includes" to includes.joinToString(" "),
+                    "lastModifiedCheck" to "true",
+                    "velocityPropertiesFile" to prepareProps.get().outputs.files.singleFile
+                )
             }
         }
     }
@@ -295,12 +393,14 @@ fun CopySpec.printableDocumentation() {
     }
 }
 
-val buildPrintableDoc = createAnakiaTask("buildPrintableDoc", baseDir = xdocs,
-        style = "stylesheets/site_printable.vsl",
-        velocityProperties = "$xdocs/velocity.properties",
-        projectFile = "stylesheets/printable_project.xml",
-        excludes = arrayOf("**/stylesheets/**", "extending.xml", "extending/*.xml"),
-        includes = arrayOf("**/*.xml"))
+val buildPrintableDoc = createAnakiaTask(
+    "buildPrintableDoc", baseDir = xdocs,
+    style = "stylesheets/site_printable.vsl",
+    velocityProperties = "$xdocs/velocity.properties",
+    projectFile = "stylesheets/printable_project.xml",
+    excludes = arrayOf("**/stylesheets/**", "extending.xml", "extending/*.xml"),
+    includes = arrayOf("**/*.xml")
+)
 
 val previewPrintableDocs by tasks.registering(Copy::class) {
     group = JavaBasePlugin.DOCUMENTATION_GROUP
@@ -323,7 +423,8 @@ fun xslt(
 
     val relativePath = if (subdir.isEmpty()) "." else ".."
     ant.withGroovyBuilder {
-        "xslt"("style" to "$xdocs/stylesheets/website-style.xsl",
+        "xslt"(
+            "style" to "$xdocs/stylesheets/website-style.xsl",
             "basedir" to "$xdocs/$subdir",
             "destdir" to "$outputDir/$subdir",
             "excludes" to excludes.joinToString(" "),
@@ -468,6 +569,10 @@ for (type in listOf("binary", "source")) {
             if (this is Tar) {
                 compression = Compression.GZIP
             }
+            // dist task excludes jar files from bin/, and lib/ however Gradle does not see that
+            // So we add an artificial dependency
+            mustRunAfter(copyBinLibs)
+            mustRunAfter(copyLibs)
             // Gradle does not track "filters" as archive/copy task dependencies,
             // So a mere change of a file attribute won't trigger re-execution of a task
             // So we add a custom property to re-execute the task in case attributes change

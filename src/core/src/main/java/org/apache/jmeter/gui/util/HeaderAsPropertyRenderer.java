@@ -43,7 +43,7 @@ public class HeaderAsPropertyRenderer extends DefaultTableCellRenderer {
 
     /**
      * @param columnsMsgParameters ignored
-     * @deprecated don't use {@code columnsMgsParameters} as they are
+     * @deprecated don't use {@code columnsMsgParameters} as they are
      * not moved around when rows of the corresponding table object model
      * are moved.
      */
@@ -90,6 +90,7 @@ public class HeaderAsPropertyRenderer extends DefaultTableCellRenderer {
      * @param columnsMsgParameters ignored
      * @return the text
      */
+    @SuppressWarnings("deprecation")
     static String getText(Object value, int row, int column, Object[][] columnsMsgParameters) {
         if (value == null){
             return "";

@@ -20,11 +20,11 @@ package org.apache.jmeter.testelement.property;
 public abstract class NumberProperty extends AbstractProperty {
     private static final long serialVersionUID = 240L;
 
-    public NumberProperty() {
+    protected NumberProperty() {
         super();
     }
 
-    public NumberProperty(String name) {
+    protected NumberProperty(String name) {
         super(name);
     }
 
@@ -54,6 +54,7 @@ public abstract class NumberProperty extends AbstractProperty {
             try {
                 setNumberValue(v.toString());
             } catch (RuntimeException ignored) {
+                // Intentionally left blank
             }
         }
     }

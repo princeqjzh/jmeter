@@ -18,8 +18,8 @@
 package org.apache.jmeter.protocol.http.control;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Serializable;
@@ -97,10 +97,10 @@ public class AuthManager extends ConfigTestElement implements TestStateListener,
 
     private static final boolean DEFAULT_CLEAR_VALUE = false;
 
-    /** Decides whether port should be omitted from SPN for kerberos spnego authentication */
+    /** Decides whether port should be omitted from SPN for Kerberos SPNEGO authentication */
     public static final boolean STRIP_PORT = JMeterUtils.getPropDefault("kerberos.spnego.strip_port", true);
 
-    /** Decides whether port should be omitted from SPN for kerberos spnego authentication */
+    /** Decides whether SPN for Kerberos SPNEGO authentication should be acquired for the canonicalized host name*/
     public static final boolean USE_CANONICAL_HOST_NAME = JMeterUtils.getPropDefault("kerberos.spnego.use_canonical_host_name", true);
 
     public enum Mechanism {
@@ -357,8 +357,8 @@ public class AuthManager extends ConfigTestElement implements TestStateListener,
         if (!file.isAbsolute()) {
             file = new File(System.getProperty("user.dir"),authFile);
         }
-        try (FileWriter fw = new FileWriter(file);
-                PrintWriter writer = new PrintWriter(fw)){
+        try (BufferedWriter fw = Files.newBufferedWriter(file.toPath());
+             PrintWriter writer = new PrintWriter(fw)){
             writer.println("# JMeter generated Authorization file");
             for (int i = 0; i < getAuthObjects().size(); i++) {
                 Authorization auth = (Authorization) getAuthObjects().get(i).getObjectValue();

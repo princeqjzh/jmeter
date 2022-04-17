@@ -15,8 +15,7 @@
  * limitations under the License.
  */
 
-import com.github.spotbugs.SpotBugsPlugin
-import com.github.spotbugs.SpotBugsTask
+import com.github.spotbugs.snom.SpotBugsTask
 import com.github.vlsi.gradle.crlf.CrLfSpec
 import com.github.vlsi.gradle.crlf.LineEndings
 import com.github.vlsi.gradle.crlf.filter
@@ -25,18 +24,23 @@ import com.github.vlsi.gradle.git.dsl.gitignore
 import com.github.vlsi.gradle.properties.dsl.lastEditYear
 import com.github.vlsi.gradle.properties.dsl.props
 import com.github.vlsi.gradle.release.RepositoryType
+import net.ltgt.gradle.errorprone.errorprone
 import org.ajoberstar.grgit.Grgit
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.sonarqube.gradle.SonarQubeProperties
 
 plugins {
     java
+    kotlin("jvm") apply false
     jacoco
     checkstyle
     id("org.jetbrains.gradle.plugin.idea-ext") apply false
     id("org.nosphere.apache.rat")
     id("com.github.autostyle")
     id("com.github.spotbugs")
+    id("net.ltgt.errorprone") apply false
     id("org.sonarqube")
     id("com.github.vlsi.crlf")
     id("com.github.vlsi.gradle-extensions")
@@ -65,13 +69,13 @@ version = "jmeter".v + releaseParams.snapshotSuffix
 
 val displayVersion by extra {
     version.toString() +
-            if (releaseParams.release.get()) {
-                ""
-            } else {
-                // Append 7 characters of Git commit id for snapshot version
-                val grgit: Grgit? by project
-                grgit?.let { " " + it.head().abbreviatedId }
-            }
+        if (releaseParams.release.get()) {
+            ""
+        } else {
+            // Append 7 characters of Git commit id for snapshot version
+            val grgit: Grgit? by project
+            grgit?.let { " " + it.head().abbreviatedId }
+        }
 }
 
 println("Building JMeter ...")
@@ -148,9 +152,11 @@ val jacocoEnabled by extra {
 
 // Do not enable spotbugs by default. Execute it only when -Pspotbugs is present
 val enableSpotBugs = props.bool("spotbugs", default = false)
+val enableErrorprone by props()
 val ignoreSpotBugsFailures by props()
 val skipCheckstyle by props()
 val skipAutostyle by props()
+val werror by props(true) // treat javac warnings as errors
 // Allow to skip building source/binary distributions
 val skipDist by extra {
     boolProp("skipDist") ?: false
@@ -188,16 +194,20 @@ sonarqube {
     }
 }
 
-fun SonarQubeProperties.add(name: String, value: String) {
-    properties.getOrPut(name) { mutableSetOf<String>() }
+fun SonarQubeProperties.add(name: String, valueProvider: () -> String) {
+    properties.getOrPut(name) { mutableSetOf<Any>() }
         .also {
             @Suppress("UNCHECKED_CAST")
-            (it as MutableCollection<String>).add(value)
+            (it as MutableCollection<Any>).add(object {
+                // SonarQube calls toString when converting properties to values
+                // (see SonarQubeProperties), so we use that to emulate "lazy properties"
+                override fun toString() = valueProvider()
+            })
         }
 }
 
 if (jacocoEnabled) {
-    val mergedCoverage = jacocoReport.get().reports.xml.destination.toString()
+    val mergedCoverage = jacocoReport.get().reports.xml.outputLocation.toString()
 
     // For every module we pass merged coverage report
     // That enables to see ":src:core" lines covered even in case they are covered from
@@ -239,7 +249,11 @@ if (enableSpotBugs) {
         sonarqube {
             properties {
                 spotBugTasks.configureEach {
-                    add("sonar.java.spotbugs.reportPaths", reports.xml.destination.toString())
+                    add("sonar.java.spotbugs.reportPaths") {
+                        // Note: report is created with lower-case xml, and then
+                        // the created entry MUST be retrieved as upper-case XML
+                        reports.named("XML").get().destination.toString()
+                    }
                 }
             }
         }
@@ -273,7 +287,7 @@ allprojects {
         autostyle {
             kotlinGradle {
                 license()
-                ktlint()
+                ktlint("ktlint".v)
             }
             format("configs") {
                 filter {
@@ -321,8 +335,14 @@ allprojects {
             }
             val sourceSets: SourceSetContainer by project
             if (sourceSets.isNotEmpty()) {
+                val checkstyleTasks = tasks.withType<Checkstyle>()
+                checkstyleTasks.configureEach {
+                    // Checkstyle 8.26 does not need classpath, see https://github.com/gradle/gradle/issues/14227
+                    classpath = files()
+                }
+
                 tasks.register("checkstyleAll") {
-                    dependsOn(tasks.withType<Checkstyle>())
+                    dependsOn(checkstyleTasks)
                 }
                 tasks.register("checkstyle") {
                     group = LifecycleBasePlugin.VERIFICATION_GROUP
@@ -341,11 +361,11 @@ allprojects {
                 }
             }
         }
-        apply<SpotBugsPlugin>()
+        apply(plugin = "com.github.spotbugs")
 
         spotbugs {
-            toolVersion = "spotbugs".v
-            isIgnoreFailures = ignoreSpotBugsFailures
+            toolVersion.set("spotbugs".v)
+            ignoreFailures.set(ignoreSpotBugsFailures)
         }
 
         if (!skipAutostyle) {
@@ -368,6 +388,38 @@ allprojects {
                 dependsOn("checkstyleAll")
             }
         }
+
+        if (enableErrorprone) {
+            apply(plugin = "net.ltgt.errorprone")
+            dependencies {
+                "errorprone"("com.google.errorprone:error_prone_core:${"errorprone".v}")
+                "annotationProcessor"("com.google.guava:guava-beta-checker:1.0")
+            }
+            tasks.withType<JavaCompile>().configureEach {
+                options.compilerArgs.addAll(listOf("-Xmaxerrs", "10000", "-Xmaxwarns", "10000"))
+                options.errorprone {
+                    disableWarningsInGeneratedCode.set(true)
+                    errorproneArgs.add("-XepExcludedPaths:.*/javacc/.*")
+                    disable(
+                        "ComplexBooleanConstant",
+                        "EqualsGetClass",
+                        "InlineMeSuggester",
+                        "OperatorPrecedence",
+                        "MutableConstantField",
+                        // "ReferenceEquality",
+                        "SameNameButDifferent",
+                        "TypeParameterUnusedInFormals"
+                    )
+                    // Analyze issues, and enable the check
+                    disable(
+                        "MissingSummary",
+                        "EmptyBlockTag",
+                        "BigDecimalEquals",
+                        "StringSplitter"
+                    )
+                }
+            }
+        }
     }
     plugins.withId("groovy") {
         if (!skipAutostyle) {
@@ -376,6 +428,33 @@ allprojects {
                     license()
                     importOrder("static ", "java.", "javax", "org", "net", "com", "")
                     indentWithSpaces(4)
+                }
+            }
+        }
+    }
+
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        configure<KotlinJvmProjectExtension> {
+            // Require explicit access modifiers and require explicit types for public APIs.
+            // See https://kotlinlang.org/docs/whatsnew14.html#explicit-api-mode-for-library-authors
+            if (props.bool("kotlin.explicitApi", default = true)) {
+                explicitApi()
+            }
+        }
+        tasks.withType<KotlinCompile>().configureEach {
+            kotlinOptions {
+                if (!name.startsWith("compileTest")) {
+                    apiVersion = "kotlin.api".v
+                }
+            }
+        }
+        if (!skipAutostyle) {
+            autostyle {
+                kotlin {
+                    license()
+                    trimTrailingWhitespace()
+                    ktlint("ktlint".v)
+                    endWithNewline()
                 }
             }
         }
@@ -415,8 +494,8 @@ allprojects {
 
         tasks.withType<JacocoReport>().configureEach {
             reports {
-                html.isEnabled = reportsForHumans()
-                xml.isEnabled = !reportsForHumans()
+                html.required.set(reportsForHumans())
+                xml.required.set(!reportsForHumans())
             }
         }
         // Add each project to combined report
@@ -427,9 +506,11 @@ allprojects {
                 sourceDirectories.from(mainCode.allSource.srcDirs)
                 // IllegalStateException: Can't add different class with same name: module-info
                 // https://github.com/jacoco/jacoco/issues/858
-                classDirectories.from(mainCode.output.asFileTree.matching {
-                    exclude("module-info.class")
-                })
+                classDirectories.from(
+                    mainCode.output.asFileTree.matching {
+                        exclude("module-info.class")
+                    }
+                )
             }
         }
     }
@@ -446,32 +527,36 @@ allprojects {
         // This block is executed right after `java` plugin is added to a project
         java {
             sourceCompatibility = JavaVersion.VERSION_1_8
+            consistentResolution {
+                useCompileClasspathVersions()
+            }
         }
 
         repositories {
-            jcenter()
+            mavenCentral()
         }
 
         tasks {
             withType<JavaCompile>().configureEach {
                 options.encoding = "UTF-8"
+                options.compilerArgs.add("-Xlint:deprecation")
+                if (werror) {
+                    options.compilerArgs.add("-Werror")
+                }
             }
             withType<ProcessResources>().configureEach {
-                from(source) {
-                    include("**/*.properties")
-                    filteringCharset = "UTF-8"
-                    // apply native2ascii conversion since Java 8 expects properties to have ascii symbols only
-                    filter(org.apache.tools.ant.filters.EscapeUnicode::class)
-                    filter(LineEndings.LF)
-                }
-                // Text-like resources are normalized to LF (just for consistency purposes)
-                // This makes to produce exactly the same jar files no matter which OS is used for the build
-                from(source) {
-                    include("**/*.dtd")
-                    include("**/*.svg")
-                    include("**/*.txt")
-                    filteringCharset = "UTF-8"
-                    filter(LineEndings.LF)
+                filteringCharset = "UTF-8"
+                eachFile {
+                    if (name.endsWith(".properties")) {
+                        filteringCharset = "UTF-8"
+                        // apply native2ascii conversion since Java 8 expects properties to have ascii symbols only
+                        filter(org.apache.tools.ant.filters.EscapeUnicode::class)
+                        filter(LineEndings.LF)
+                    } else if (name.endsWith(".dtd") || name.endsWith(".svg") ||
+                        name.endsWith(".txt")
+                    ) {
+                        filter(LineEndings.LF)
+                    }
                 }
             }
             afterEvaluate {
@@ -506,10 +591,20 @@ allprojects {
                     exceptionFormat = TestExceptionFormat.FULL
                     showStandardStreams = true
                 }
+
+                outputs.cacheIf("test outcomes sometimes depends on third-party systems, so we should not cache it for now") {
+                    false
+                }
+
                 // Pass the property to tests
                 fun passProperty(name: String, default: String? = null) {
                     val value = System.getProperty(name) ?: default
                     value?.let { systemProperty(name, it) }
+                }
+                System.getProperties().filter {
+                    it.key.toString().startsWith("jmeter.properties.")
+                }.forEach {
+                    systemProperty(it.key.toString().substring("jmeter.properties.".length), it.value)
                 }
                 passProperty("java.awt.headless")
                 passProperty("skip.test_TestDNSCacheManager.testWithCustomResolverAnd1Server")
@@ -519,13 +614,14 @@ allprojects {
             withType<SpotBugsTask>().configureEach {
                 group = LifecycleBasePlugin.VERIFICATION_GROUP
                 if (enableSpotBugs) {
-                    description = "$description (skipped by default, to enable it add -Dspotbugs)"
+                    description = "$description (skipped by default, to enable it add -Pspotbugs)"
                 }
                 reports {
-                    html.isEnabled = reportsForHumans()
-                    xml.isEnabled = !reportsForHumans()
-                    // This is for Sonar
-                    xml.isWithMessages = true
+                    // xml goes for SonarQube, so we always create it just in case
+                    create("xml")
+                    if (reportsForHumans()) {
+                        create("html")
+                    }
                 }
                 enabled = enableSpotBugs
             }

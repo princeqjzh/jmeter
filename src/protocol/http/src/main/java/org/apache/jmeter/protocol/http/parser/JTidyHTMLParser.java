@@ -111,7 +111,16 @@ class JTidyHTMLParser extends HTMLParser {
             }
 
             if (name.equalsIgnoreCase(TAG_APPLET)) {
-                urls.addURL(getValue(attrs, "code"), baseUrl);
+                String codebase = getValue(attrs, ATT_CODEBASE);
+                String code = getValue(attrs, ATT_ARCHIVE);
+                if (StringUtils.isBlank(code)) {
+                    code = getValue(attrs, ATT_CODE);
+                }
+                if (StringUtils.isBlank(codebase)) {
+                    urls.addURL(code, baseUrl);
+                } else {
+                    urls.addURL(codebase + "/" + code, baseUrl);
+                }
                 break;
             }
 
@@ -214,7 +223,7 @@ class JTidyHTMLParser extends HTMLParser {
         tidy.setQuiet(true);
         tidy.setShowWarnings(false);
         if (log.isDebugEnabled()) {
-            log.debug("getParser : tidy parser created - " + tidy);
+            log.debug("getParser : tidy parser created - {}", tidy);
         }
         log.debug("End   : getParser");
         return tidy;
@@ -234,7 +243,7 @@ class JTidyHTMLParser extends HTMLParser {
         log.debug("Start : getDOM");
         Node node = getTidyParser(encoding).parseDOM(new ByteArrayInputStream(text), null);
         if (log.isDebugEnabled()) {
-            log.debug("node : " + node);
+            log.debug("node : {}", node);
         }
         log.debug("End   : getDOM");
         return node;

@@ -288,6 +288,7 @@ public class AjpSampler extends HTTPSamplerBase implements Interruptible {
                     sb.append(arg.getStringValue());
                 }
                 stringBody = sb.toString();
+                @SuppressWarnings("DefaultCharset")
                 byte [] sbody = stringBody.getBytes(); // TODO - charset?
                 cl = sbody.length;
                 body = new ByteArrayInputStream(sbody);
@@ -326,7 +327,7 @@ public class AjpSampler extends HTTPSamplerBase implements Interruptible {
         if(cookies != null) {
             cookieHeader = cookies.getCookieHeaderForURL(url);
             for (JMeterProperty jMeterProperty : cookies.getCookies()) {
-                Cookie cookie = (Cookie)(jMeterProperty.getObjectValue());
+                Cookie cookie = (Cookie) jMeterProperty.getObjectValue();
                 setInt(0xA009); // Cookie
                 setString(cookie.getName()+"="+cookie.getValue());//$NON-NLS-1$
             }

@@ -53,13 +53,7 @@ public class JSONManager {
     private final Map<String, JsonPath> expressionToJsonPath = new HashMap<>(2);
 
     private JsonPath getJsonPath(String jsonPathExpression) {
-        JsonPath jsonPath = expressionToJsonPath.get(jsonPathExpression);
-        if (jsonPath == null) {
-            jsonPath = JsonPath.compile(jsonPathExpression);
-            expressionToJsonPath.put(jsonPathExpression, jsonPath);
-        }
-
-        return jsonPath;
+        return expressionToJsonPath.computeIfAbsent(jsonPathExpression, JsonPath::compile);
     }
 
     public void reset() {
@@ -90,7 +84,7 @@ public class JSONManager {
         for (Object obj: extractedObjects) {
             results.add(stringifyJSONObject(obj));
         }
-        return results;
+        return Collections.unmodifiableList(results);
     }
 
     @SuppressWarnings("unchecked")
@@ -101,7 +95,7 @@ public class JSONManager {
         if (obj instanceof JSONArray) {
             return ((JSONArray)obj).toJSONString();
         }
-        return obj == null ? "" : obj.toString(); //$NON-NLS-1$
+        return obj == null ? null : obj.toString();
     }
 
 }

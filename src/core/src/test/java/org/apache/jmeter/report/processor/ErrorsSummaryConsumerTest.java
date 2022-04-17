@@ -38,20 +38,29 @@ public class ErrorsSummaryConsumerTest {
         sample = new Sample(0, metadata, new String[] { "false", "200", "", "FailureMessage" });
         assertEquals("FailureMessage", ErrorsSummaryConsumer.getErrorKey(sample));
 
+        sample = new Sample(0, metadata, new String[] { "false", "200", "", "" });
+        assertEquals(MetricUtils.ASSERTION_FAILED, ErrorsSummaryConsumer.getErrorKey(sample));
+
         sample = new Sample(0, metadata, new String[] { "false", "200", "",
                 "Test failed: text expected to contain /<title>Some html text</title>/" });
-        assertEquals("Test failed: text expected to contain \\/&lt;title&gt;Some html text&lt;\\/title&gt;\\/",
+        assertEquals("Test failed: text expected to contain /&lt;title&gt;Some html text&lt;/title&gt;/",
                 ErrorsSummaryConsumer.getErrorKey(sample));
 
         sample = new Sample(0, metadata, new String[] { "false", "200", "",
                 "Test failed: text expected to contain /{\"glossary\": { \"title\": \"example glossary\"}}/" });
-        assertEquals("Test failed: text expected to contain \\/{&quot;glossary&quot;: { &quot;title&quot;: &quot;example glossary&quot;}}\\/",
+        assertEquals("Test failed: text expected to contain /{&quot;glossary&quot;: { &quot;title&quot;: &quot;example glossary&quot;}}/",
                 ErrorsSummaryConsumer.getErrorKey(sample));
 
         sample = new Sample(0, metadata, new String[] { "true", "200", "", "" });
-        assertEquals(MetricUtils.ASSERTION_FAILED, ErrorsSummaryConsumer.getErrorKey(sample));
+        assertEquals("", ErrorsSummaryConsumer.getErrorKey(sample));
 
-        sample = new Sample(0, metadata, new String[] { "false", "500", "Server Error", "FailureMessage" });
+        sample = new Sample(0, metadata, new String[] { "false", "403", "", "" });
+        assertEquals("403", ErrorsSummaryConsumer.getErrorKey(sample));
+
+        sample = new Sample(0, metadata, new String[] { "false", "403", "", "FailureMessage" });
+        assertEquals("FailureMessage", ErrorsSummaryConsumer.getErrorKey(sample));
+
+        sample = new Sample(0, metadata, new String[] { "false", "500", "Server Error", "" });
         assertEquals("500/Server Error", ErrorsSummaryConsumer.getErrorKey(sample));
     }
 

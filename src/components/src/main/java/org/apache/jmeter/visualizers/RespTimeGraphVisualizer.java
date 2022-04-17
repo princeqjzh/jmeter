@@ -21,12 +21,12 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +66,7 @@ import org.apache.jmeter.visualizers.utils.Colors;
 import org.apache.jorphan.gui.GuiUtils;
 import org.apache.jorphan.gui.JFactory;
 import org.apache.jorphan.gui.JLabeledTextField;
+import org.apache.jorphan.gui.JMeterUIDefaults;
 import org.apache.jorphan.math.StatCalculatorLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -295,7 +296,7 @@ public class RespTimeGraphVisualizer extends AbstractVisualizer implements Actio
         if (samplerSelection.isSelected() && pattern != null) {
             matcher = pattern.matcher(sampleLabel);
         }
-        if ((matcher == null) || (matcher.find())) {
+        if (matcher == null || matcher.find()) {
             final long startTimeMS = sampleResult.getStartTime();
             final long startTimeInterval = startTimeMS / intervalValue;
             JMeterUtils.runSafe(false, () -> {
@@ -373,10 +374,12 @@ public class RespTimeGraphVisualizer extends AbstractVisualizer implements Actio
         graphPanel.setPointShape(StatGraphProperties.getPointShapeMap().get(pointShapeLine.getSelectedItem()));
         graphPanel.setStrokeWidth(Float.parseFloat((String) strokeWidthList.getSelectedItem()));
 
-        graphPanel.setTitleFont(new Font(StatGraphProperties.getFontNameMap().get(titleFontNameList.getSelectedItem()),
+        graphPanel.setTitleFont(JMeterUIDefaults.createFont(
+                StatGraphProperties.getFontNameMap().get(titleFontNameList.getSelectedItem()),
                 StatGraphProperties.getFontStyleMap().get(titleFontStyleList.getSelectedItem()),
                 Integer.parseInt((String) titleFontSizeList.getSelectedItem())));
-        graphPanel.setLegendFont(new Font(StatGraphProperties.getFontNameMap().get(fontNameList.getSelectedItem()),
+        graphPanel.setLegendFont(JMeterUIDefaults.createFont(
+                StatGraphProperties.getFontNameMap().get(fontNameList.getSelectedItem()),
                 StatGraphProperties.getFontStyleMap().get(fontStyleList.getSelectedItem()),
                 Integer.parseInt((String) fontSizeList.getSelectedItem())));
 
@@ -704,10 +707,12 @@ public class RespTimeGraphVisualizer extends AbstractVisualizer implements Actio
     }
 
     public String[] getXAxisLabels() {
-        SimpleDateFormat formatter = new SimpleDateFormat(xAxisTimeFormat.getText()); //$NON-NLS-1$
+        DateTimeFormatter formatter = DateTimeFormatter
+                .ofPattern(xAxisTimeFormat.getText()) //$NON-NLS-1$
+                .withZone(ZoneId.systemDefault());
         String[] xAxisLabels = new String[(int) durationTest]; // Test can't have a duration more than 2^31 secs (cast from long to int)
         for (int j = 0; j < durationTest; j++) {
-            xAxisLabels[j] = formatter.format(new Date((minStartTime + j) * intervalValue));
+            xAxisLabels[j] = formatter.format(Instant.ofEpochMilli((minStartTime + j) * intervalValue));
         }
         return xAxisLabels;
     }

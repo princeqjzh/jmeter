@@ -88,7 +88,7 @@ public abstract class AbstractJMeterGuiComponent extends JPanel implements JMete
      * setting up the Name Panel and assigning the class's static label as the
      * name to start.
      */
-    public AbstractJMeterGuiComponent() {
+    protected AbstractJMeterGuiComponent() {
         namePanel = new NamePanel();
         init();
     }
@@ -269,6 +269,8 @@ public abstract class AbstractJMeterGuiComponent extends JPanel implements JMete
         titlePanel.add(nameField);
 
         titlePanel.add(labelFor(nameField, "testplan_comments"));
+        commentField.setWrapStyleWord(true);
+        commentField.setLineWrap(true);
         titlePanel.add(commentField);
 
         // Note: VerticalPanel has a workaround for Box layout which aligns elements, so we can't

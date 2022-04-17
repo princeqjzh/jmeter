@@ -141,7 +141,7 @@ public class SampleResultConverter extends AbstractCollectionConverter {
         if (save.saveUrl()) {
             final URL url = res.getURL();
             if (url != null) {
-                writeItem(url, context, writer);
+                writeCompleteItem(url, context, writer);
             }
         }
     }
@@ -239,7 +239,7 @@ public class SampleResultConverter extends AbstractCollectionConverter {
             SampleResult[] subResults = res.getSubResults();
             for (SampleResult subResult : subResults) {
                 subResult.setSaveConfig(save);
-                writeItem(subResult, context, writer);
+                writeCompleteItem(subResult, context, writer);
             }
         }
     }
@@ -261,7 +261,7 @@ public class SampleResultConverter extends AbstractCollectionConverter {
         if (save.saveAssertions()) {
             AssertionResult[] assertionResults = res.getAssertionResults();
             for (AssertionResult assertionResult : assertionResults) {
-                writeItem(assertionResult, context, writer);
+                writeCompleteItem(assertionResult, context, writer);
             }
         }
     }
@@ -368,7 +368,7 @@ public class SampleResultConverter extends AbstractCollectionConverter {
         retrieveAttributes(reader, context, res);
         while (reader.hasMoreChildren()) {
             reader.moveDown();
-            Object subItem = readItem(reader, context, res);
+            Object subItem = readBareItem(reader, context, res);
             retrieveItem(reader, context, res, subItem);
             reader.moveUp();
         }
@@ -396,7 +396,7 @@ public class SampleResultConverter extends AbstractCollectionConverter {
         if (subItem instanceof AssertionResult) {
             res.addAssertionResult((AssertionResult) subItem);
         } else if (subItem instanceof SampleResult) {
-            res.storeSubResult((SampleResult) subItem);
+            res.storeSubResult((SampleResult) subItem, false);
         } else if (nodeName.equals(TAG_RESPONSE_HEADER)) {
             res.setResponseHeaders((String) subItem);
         } else if (nodeName.equals(TAG_REQUEST_HEADER)) {

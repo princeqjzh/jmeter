@@ -121,12 +121,12 @@ public class JUnitSampler extends AbstractSampler implements ThreadListener {
     /**
      * Sets the Classname attribute of the JavaConfig object
      *
-     * @param classname
+     * @param className
      *            the new Classname value
      */
-    public void setClassname(String classname)
+    public void setClassname(String className)
     {
-        setProperty(CLASSNAME, classname);
+        setProperty(CLASSNAME, className);
     }
 
     /**
@@ -366,6 +366,7 @@ public class JUnitSampler extends AbstractSampler implements ThreadListener {
 
     /** {@inheritDoc} */
     @Override
+    @SuppressWarnings("JdkObsolete")
     public SampleResult sample(Entry entry) {
         if(getCreateOneInstancePerSample()) {
             initializeTestObject();

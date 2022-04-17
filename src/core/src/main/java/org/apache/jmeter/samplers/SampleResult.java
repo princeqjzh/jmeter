@@ -583,7 +583,9 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
      */
     public String getSampleLabel(boolean includeGroup) {
         if (includeGroup) {
-            return threadName.substring(0, threadName.lastIndexOf(' ')) + ":" + label;
+            // while JMeters own samplers always set the threadName, that might not be the case for plugins
+            int lastSpacePos = Math.max(0, threadName.lastIndexOf(' '));
+            return threadName.substring(0, lastSpacePos) + ":" + label;
         }
         return label;
     }
@@ -704,11 +706,11 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
      *            the {@link SampleResult} to be added
      * @param renameSubResults boolean do we rename subResults based on position
      */
-    private void storeSubResult(SampleResult subResult, boolean renameSubResults) {
+    public void storeSubResult(SampleResult subResult, boolean renameSubResults) {
         if (subResults == null) {
             subResults = new ArrayList<>();
         }
-        if(renameSubResults) {
+        if (renameSubResults) {
             subResult.setSampleLabel(getSampleLabel()+"-"+subResultIndex++);
         }
         subResults.add(subResult);
@@ -757,7 +759,7 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
         try {
             responseData = response.getBytes(getDataEncodingWithDefault());
         } catch (UnsupportedEncodingException e) {
-            log.warn("Could not convert string, using default encoding. "+e.getLocalizedMessage());
+            log.warn("Could not convert string, using default encoding. {}", e.getLocalizedMessage());
             responseData = response.getBytes(Charset.defaultCharset()); // N.B. default charset is used deliberately here
         }
     }
@@ -776,8 +778,8 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
             responseData = response.getBytes(encodeUsing);
             setDataEncoding(encodeUsing);
         } catch (UnsupportedEncodingException e) {
-            log.warn("Could not convert string using '"+encodeUsing+
-                    "', using default encoding: "+DEFAULT_CHARSET,e);
+            log.warn("Could not convert string using '{}', using default encoding: {}", encodeUsing, DEFAULT_CHARSET,
+                    e);
             responseData = response.getBytes(Charset.defaultCharset()); // N.B. default charset is used deliberately here
             setDataEncoding(DEFAULT_CHARSET);
         }
@@ -809,7 +811,7 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
             }
             return responseDataAsString;
         } catch (UnsupportedEncodingException e) {
-            log.warn("Using platform default as "+getDataEncodingWithDefault()+" caused "+e);
+            log.warn("Using platform default as {} caused {}", getDataEncodingWithDefault(), e.getLocalizedMessage());
             return new String(responseData,Charset.defaultCharset()); // N.B. default charset is used deliberately here
         }
     }

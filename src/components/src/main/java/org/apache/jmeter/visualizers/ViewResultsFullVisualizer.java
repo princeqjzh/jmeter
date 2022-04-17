@@ -26,6 +26,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -59,10 +61,8 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
-import org.apache.commons.collections.Buffer;
-import org.apache.commons.collections.EnumerationUtils;
-import org.apache.commons.collections.buffer.CircularFifoBuffer;
-import org.apache.commons.collections.buffer.UnboundedFifoBuffer;
+import org.apache.commons.collections4.EnumerationUtils;
+import org.apache.commons.collections4.queue.CircularFifoQueue;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jmeter.JMeter;
 import org.apache.jmeter.assertions.AssertionResult;
@@ -74,6 +74,8 @@ import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jmeter.visualizers.gui.AbstractVisualizer;
 import org.apache.jorphan.gui.JMeterUIDefaults;
+import org.apache.jorphan.util.StringWrap;
+import org.apiguardian.api.API;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +87,7 @@ import org.slf4j.LoggerFactory;
 public class ViewResultsFullVisualizer extends AbstractVisualizer
 implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
 
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
     private static final Logger log = LoggerFactory.getLogger(ViewResultsFullVisualizer.class);
 
@@ -102,6 +104,14 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
     // Default limited to 10 megabytes
     private static final int MAX_DISPLAY_SIZE =
             JMeterUtils.getPropDefault("view.results.tree.max_size", 10485760); // $NON-NLS-1$
+
+    // Default limited to 110K
+    private static final int MAX_LINE_SIZE =
+            JMeterUtils.getPropDefault("view.results.tree.max_line_size", 110000); // $NON-NLS-1$
+
+    // Limit the soft wrap to 100K (hard limit divided by 1.1)
+    private static final int SOFT_WRAP_LINE_SIZE =
+            JMeterUtils.getPropDefault("view.results.tree.soft_wrap_line_size", (int) (MAX_LINE_SIZE / 1.1f)); // $NON-NLS-1$
 
     // default display order
     private static final String VIEWERS_ORDER =
@@ -129,7 +139,7 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
     private Object resultsObject = null;
     private TreeSelectionEvent lastSelectionEvent;
     private JCheckBox autoScrollCB;
-    private Buffer buffer;
+    private final Queue<SampleResult> buffer;
     private boolean dataChanged;
 
     /**
@@ -139,16 +149,15 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
         super();
         final int maxResults = JMeterUtils.getPropDefault("view.results.tree.max_results", 500);
         if (maxResults > 0) {
-            buffer = new CircularFifoBuffer(maxResults);
+            buffer = new CircularFifoQueue<>(maxResults);
         } else {
-            buffer = new UnboundedFifoBuffer();
+            buffer = new ArrayDeque<>();
         }
         init();
         new Timer(REFRESH_PERIOD, e -> updateGui()).start();
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("unchecked")
     @Override
     public void add(final SampleResult sample) {
         synchronized (buffer) {
@@ -174,8 +183,8 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
             oldExpandedElements = extractExpandedObjects(expandedElements);
             oldSelectedElement = getSelectedObject();
             root.removeAllChildren();
-            for (Object sampler: buffer) {
-                SampleResult res = (SampleResult) sampler;
+            for (SampleResult sampler: buffer) {
+                SampleResult res = sampler;
                 // Add sample
                 DefaultMutableTreeNode currNode = new SearchableTreeNode(res, treeModel);
                 treeModel.insertNodeInto(currNode, root, root.getChildCount());
@@ -255,7 +264,6 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
 
     private Set<Object> extractExpandedObjects(final Enumeration<TreePath> expandedElements) {
         if (expandedElements != null) {
-            @SuppressWarnings("unchecked")
             final List<TreePath> list = EnumerationUtils.toList(expandedElements);
             log.debug("Expanded: {}", list);
             Set<Object> result = list.stream()
@@ -405,7 +413,7 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
      * @return true if sampleResult is text or has empty content type
      */
     protected static boolean isTextDataType(SampleResult sampleResult) {
-        return (SampleResult.TEXT).equals(sampleResult.getDataType())
+        return SampleResult.TEXT.equals(sampleResult.getDataType())
                 || StringUtils.isEmpty(sampleResult.getDataType());
     }
 
@@ -462,7 +470,9 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
         for (String clazz : classesToAdd) {
             try {
                 // Instantiate render classes
-                final ResultRenderer renderer = (ResultRenderer) Class.forName(clazz).getDeclaredConstructor().newInstance();
+                final ResultRenderer renderer = Class.forName(clazz)
+                        .asSubclass(ResultRenderer.class)
+                        .getDeclaredConstructor().newInstance();
                 if (defaultRenderer.equals(clazz)) {
                     defaultObject=renderer;
                 }
@@ -563,6 +573,19 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
         return response;
     }
 
+    @API(status = API.Status.INTERNAL, since = "5.5")
+    public static String wrapLongLines(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        if (SOFT_WRAP_LINE_SIZE > 0 && MAX_LINE_SIZE > 0) {
+            StringWrap stringWrap = new StringWrap(SOFT_WRAP_LINE_SIZE, MAX_LINE_SIZE);
+            return stringWrap.wrap(input, "\n");
+        }
+        return input;
+    }
+
+
     private static class ResultsNodeRenderer extends DefaultTreeCellRenderer {
         private static final long serialVersionUID = 4159626601097711565L;
 
@@ -573,7 +596,7 @@ implements ActionListener, TreeSelectionListener, Clearable, ItemListener {
             boolean failure = true;
             Object userObject = ((DefaultMutableTreeNode) value).getUserObject();
             if (userObject instanceof SampleResult) {
-                failure = !(((SampleResult) userObject).isSuccessful());
+                failure = !((SampleResult) userObject).isSuccessful();
             } else if (userObject instanceof AssertionResult) {
                 AssertionResult assertion = (AssertionResult) userObject;
                 failure = assertion.isError() || assertion.isFailure();

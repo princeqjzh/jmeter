@@ -25,11 +25,13 @@ import java.awt.Graphics2D;
 import java.awt.LayoutManager;
 import java.awt.Paint;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 import javax.swing.JPanel;
 import javax.swing.UIManager;
 
 import org.apache.jmeter.util.JMeterUtils;
+import org.apache.jorphan.gui.JMeterUIDefaults;
 import org.jCharts.axisChart.AxisChart;
 import org.jCharts.axisChart.customRenderers.axisValue.renderers.ValueLabelPosition;
 import org.jCharts.axisChart.customRenderers.axisValue.renderers.ValueLabelRenderer;
@@ -82,7 +84,7 @@ public class AxisGraph extends JPanel {
 
     private static final Font FONT_DEFAULT = UIManager.getDefaults().getFont("TextField.font");
 
-    protected Font valueFont = new Font("SansSerif", Font.PLAIN, (int) Math.round(FONT_DEFAULT.getSize() * 0.6));
+    protected Font valueFont = JMeterUIDefaults.createFont("SansSerif", Font.PLAIN, (int) Math.round(FONT_DEFAULT.getSize() * 0.6));
 
     protected Color[] color = { Color.YELLOW };
 
@@ -397,7 +399,7 @@ public class AxisGraph extends JPanel {
             // Y Axis
             try {
                 BigDecimal round = BigDecimal.valueOf(max / 1000d);
-                round = round.setScale(0, BigDecimal.ROUND_UP);
+                round = round.setScale(0, RoundingMode.UP);
                 double topValue = round.doubleValue() * 1000;
                 yaxis.setUserDefinedScale(0, 500);
                 yaxis.setNumItems((int) (topValue / 500)+1);

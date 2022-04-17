@@ -28,8 +28,8 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.AbstractMap;
@@ -39,7 +39,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map.Entry;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -64,7 +64,7 @@ public class ObjectTableSorterTest {
         Class<?>[] editorClasses = {String.class, Integer.class, Object.class};
         ObjectTableModel model = new ObjectTableModel(headers, readFunctors, writeFunctors, editorClasses);
         sorter = new ObjectTableSorter(model);
-        List<Entry<String, Integer>> data = asList(b2(), a3(), d4(), c1());
+        List<Map.Entry<String, Integer>> data = asList(b2(), a3(), d4(), c1());
         data.forEach(model::addRow);
     }
 
@@ -125,7 +125,7 @@ public class ObjectTableSorterTest {
     @Test
     public void customKeyOrder() {
         HashMap<String, Integer> customKeyOrder = Stream.of("a", "c", "b", "d")
-                .reduce(new HashMap<String, Integer>(), (map, key) -> {
+                .reduce(new HashMap<>(), (map, key) -> {
                     map.put(key, map.size());
                     return map;
                 }, (a, b) -> a);
@@ -247,11 +247,11 @@ public class ObjectTableSorterTest {
     }
 
     @SuppressWarnings("unchecked")
-    protected List<Entry<String, Integer>> actual() {
+    protected List<Map.Entry<String, Integer>> actual() {
         return IntStream
                 .range(0, sorter.getViewRowCount())
                 .map(sorter::convertRowIndexToModel)
-                .mapToObj(modelIndex -> (Entry<String, Integer>) sorter.getModel().getObjectListAsList().get(modelIndex))
+                .mapToObj(modelIndex -> (Map.Entry<String, Integer>) sorter.getModel().getObjectListAsList().get(modelIndex))
                 .collect(Collectors.toList())
                 ;
     }

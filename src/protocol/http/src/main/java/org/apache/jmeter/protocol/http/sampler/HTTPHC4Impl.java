@@ -30,6 +30,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -248,6 +249,10 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
             if (authScope == null) {
                 return null;
             }
+            if (authManager == null) {
+                log.debug("No authManager found");
+                return null;
+            }
             for (JMeterProperty authProp : authManager.getAuthObjects()) {
                 Object authObject = authProp.getObjectValue();
                 if (authObject instanceof Authorization) {
@@ -353,7 +358,9 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
          */
         private void fillAuthCache(HttpHost targetHost, Authorization authorization, AuthCache authCache,
                 AuthScope authScope) {
-            if(authorization.getMechanism() == Mechanism.BASIC_DIGEST || // NOSONAR
+            @SuppressWarnings("deprecation")
+            Mechanism basicDigest = Mechanism.BASIC_DIGEST;
+            if(authorization.getMechanism() == basicDigest ||
                     authorization.getMechanism() == Mechanism.BASIC) {
                 BasicScheme basicAuth = new BasicScheme();
                 authCache.put(targetHost, basicAuth);
@@ -428,6 +435,7 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
 
     private static final Pattern PORT_PATTERN = Pattern.compile("\\d+"); // only used in .matches(), no need for anchors
 
+    @SuppressWarnings("UnnecessaryAnonymousClass")
     private static final ConnectionKeepAliveStrategy IDLE_STRATEGY = new DefaultConnectionKeepAliveStrategy(){
         @Override
         public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
@@ -474,6 +482,7 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
      * that HC core {@link ResponseContentEncoding} removes after uncompressing
      * See Bug 59401
      */
+    @SuppressWarnings("UnnecessaryAnonymousClass")
     private static final HttpResponseInterceptor RESPONSE_CONTENT_ENCODING = new ResponseContentEncoding(createLookupRegistry()) {
         @Override
         public void process(HttpResponse response, HttpContext context)
@@ -1462,7 +1471,7 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
     private String getOnlyCookieFromHeaders(HttpRequest method) {
         String cookieHeader= getFromHeadersMatchingPredicate(method, ONLY_COOKIE).trim();
         if(!cookieHeader.isEmpty()) {
-            return cookieHeader.substring((HTTPConstants.HEADER_COOKIE_IN_REQUEST).length(), cookieHeader.length()).trim();
+            return cookieHeader.substring(HTTPConstants.HEADER_COOKIE_IN_REQUEST.length()).trim();
         }
         return "";
     }
@@ -1503,7 +1512,7 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
         @Override
         public void writeTo(final OutputStream out) throws IOException {
             if (hideFileData) {
-                out.write("<actual file content, not shown here>".getBytes());// encoding does not really matter here
+                out.write("<actual file content, not shown here>".getBytes(StandardCharsets.UTF_8));
             } else {
                 super.writeTo(out);
             }
@@ -1526,6 +1535,12 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
         // Check if we should do a multipart/form-data or an
         // application/x-www-form-urlencoded post request
         if(getUseMultipart()) {
+            if (entityEnclosingRequest.getHeaders(HTTPConstants.HEADER_CONTENT_TYPE).length > 0) {
+                log.info(
+                        "Content-Header is set already on the request! Will be replaced by a Multipart-Header. Old headers: {}",
+                        Arrays.asList(entityEnclosingRequest.getHeaders(HTTPConstants.HEADER_CONTENT_TYPE)));
+                entityEnclosingRequest.removeHeaders(HTTPConstants.HEADER_CONTENT_TYPE);
+            }
             // If a content encoding is specified, we use that as the
             // encoding of any parameter values
             Charset charset;
@@ -1554,7 +1569,15 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
                 if (arg.isSkippable(parameterName)) {
                     continue;
                 }
-                StringBody stringBody = new StringBody(arg.getValue(), ContentType.create(arg.getContentType(), charset));
+                ContentType contentType;
+                if (arg.getContentType().indexOf(';') >= 0) {
+                    // assume, that the content type contains charset info
+                    // don't add another charset and use parse to cope with the semicolon
+                    contentType = ContentType.parse(arg.getContentType());
+                } else {
+                    contentType = ContentType.create(arg.getContentType(), charset);
+                }
+                StringBody stringBody = new StringBody(arg.getValue(), contentType);
                 FormBodyPart formPart = FormBodyPartBuilder.create(
                         parameterName, stringBody).build();
                 multipartEntityBuilder.addPart(formPart);
@@ -1567,7 +1590,7 @@ public class HTTPHC4Impl extends HTTPHCAbstractImpl {
                 HTTPFileArg file = files[i];
 
                 File reservedFile = FileServer.getFileServer().getResolvedFile(file.getPath());
-                fileBodies[i] = new ViewableFileBody(reservedFile, ContentType.create(file.getMimeType()));
+                fileBodies[i] = new ViewableFileBody(reservedFile, ContentType.parse(file.getMimeType()));
                 multipartEntityBuilder.addPart(file.getParamName(), fileBodies[i] );
             }
 

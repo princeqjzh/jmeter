@@ -19,9 +19,9 @@ package org.apache.jmeter.util;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -34,7 +34,7 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.collections.map.LRUMap;
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.samplers.Sampler;
@@ -52,16 +52,15 @@ import org.slf4j.LoggerFactory;
 public abstract class JSR223TestElement extends ScriptingTestElement
     implements Serializable, TestStateListener
 {
-    private static final long serialVersionUID = 232L;
+    private static final long serialVersionUID = 233L;
 
     private static final Logger logger = LoggerFactory.getLogger(JSR223TestElement.class);
     /**
      * Cache of compiled scripts
      */
-    @SuppressWarnings("unchecked") // LRUMap does not support generics (yet)
     private static final Map<String, CompiledScript> compiledScriptsCache =
             Collections.synchronizedMap(
-                    new LRUMap(JMeterUtils.getPropDefault("jsr223.compiled_scripts_cache_size", 100)));
+                    new LRUMap<>(JMeterUtils.getPropDefault("jsr223.compiled_scripts_cache_size", 100)));
 
     /** If not empty then script in ScriptText will be compiled and cached */
     private String cacheKey = "";
@@ -86,7 +85,7 @@ public abstract class JSR223TestElement extends ScriptingTestElement
             return LazyHolder.INSTANCE;
     }
 
-    public JSR223TestElement() {
+    protected JSR223TestElement() {
         super();
     }
 
@@ -170,7 +169,7 @@ public abstract class JSR223TestElement extends ScriptingTestElement
         // Hack: bsh-2.0b5.jar BshScriptEngine implements Compilable but throws
         // "java.lang.Error: unimplemented"
         boolean supportsCompilable = scriptEngine instanceof Compilable
-                && !("bsh.engine.BshScriptEngine".equals(scriptEngine.getClass().getName())); // NOSONAR // $NON-NLS-1$
+                && !"bsh.engine.BshScriptEngine".equals(scriptEngine.getClass().getName()); // NOSONAR // $NON-NLS-1$
         try {
             if (!StringUtils.isEmpty(getFilename())) {
                 if (scriptFile.exists() && scriptFile.canRead()) {
@@ -183,9 +182,7 @@ public abstract class JSR223TestElement extends ScriptingTestElement
                             synchronized (compiledScriptsCache) {
                                 compiledScript = compiledScriptsCache.get(newCacheKey);
                                 if (compiledScript == null) {
-                                    // TODO Charset ?
-                                    try (BufferedReader fileReader = new BufferedReader(new FileReader(scriptFile),
-                                            (int) scriptFile.length())) {
+                                    try (BufferedReader fileReader = Files.newBufferedReader(scriptFile.toPath())) {
                                         compiledScript = ((Compilable) scriptEngine).compile(fileReader);
                                         compiledScriptsCache.put(newCacheKey, compiledScript);
                                     }
@@ -194,9 +191,7 @@ public abstract class JSR223TestElement extends ScriptingTestElement
                         }
                         return compiledScript.eval(bindings);
                     } else {
-                        // TODO Charset ?
-                        try (BufferedReader fileReader = new BufferedReader(new FileReader(scriptFile),
-                                (int) scriptFile.length())) {
+                        try (BufferedReader fileReader = Files.newBufferedReader(scriptFile.toPath())) {
                             return scriptEngine.eval(fileReader, bindings);
                         }
                     }
@@ -246,7 +241,7 @@ public abstract class JSR223TestElement extends ScriptingTestElement
         String lang = getScriptLanguageWithDefault();
         ScriptEngine scriptEngine = getInstance().getEngineByName(lang);
         boolean supportsCompilable = scriptEngine instanceof Compilable
-                && !("bsh.engine.BshScriptEngine".equals(scriptEngine.getClass().getName())); // NOSONAR // $NON-NLS-1$
+                && !"bsh.engine.BshScriptEngine".equals(scriptEngine.getClass().getName()); // NOSONAR // $NON-NLS-1$
         if(!supportsCompilable) {
             return true;
         }
@@ -260,8 +255,7 @@ public abstract class JSR223TestElement extends ScriptingTestElement
             }
         } else {
             File scriptFile = new File(getFilename());
-            try (BufferedReader fileReader = new BufferedReader(new FileReader(scriptFile),
-                    (int) scriptFile.length())) {
+            try (BufferedReader fileReader = Files.newBufferedReader(scriptFile.toPath())) {
                 try {
                     ((Compilable) scriptEngine).compile(fileReader);
                     return true;

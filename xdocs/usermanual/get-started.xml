@@ -264,7 +264,7 @@ There are a few environment variables, that can be used to customize the JVM set
 rem This is the content of bin\setenv.bat,
 rem it will be called by bin\jmeter.bat
 
-set JVM_ARGS="-Xms1024m -Xmx1024m -Dpropname=value"
+set JVM_ARGS=-Xms1024m -Xmx1024m -Dpropname=value
 </source>
 
 <p>
@@ -316,7 +316,7 @@ will override the HEAP settings in the script.
 # it will be sourced in by bin/jmeter
 
 # Use a bigger heap, but a smaller metaspace, than the default
-export HEAP="-Xms1G -Xmx1G -XMaxMetaspaceSize=192m"
+export HEAP="-Xms1G -Xmx1G -XX:MaxMetaspaceSize=192m"
 
 # Try to guess the locale from the OS. The space as value is on purpose!
 export JMETER_LANGUAGE=" "
@@ -425,7 +425,14 @@ If the proxy host and port are provided, then JMeter sets the following System p
 <li><code>https.proxyHost</code></li>
 <li><code>https.proxyPort</code></li>
 </ul>
+<p>
+The user and password used for a proxy can be given by the System properties <code>http.proxyUser</code>
+and <code>http.proxyUser</code>. They will get overridden by the above arguments or values set in the
+HTTP Samplers.
+</p>
+<p>
 If a nonproxy host list is provided, then JMeter sets the following System properties:
+</p>
 <ul>
 <li><code>http.nonProxyHosts</code></li>
 <li><code>https.nonProxyHosts</code></li>
@@ -819,8 +826,8 @@ This daemon thread waits a short while; if it returns from the wait, then clearl
 JVM has not been able to exit, and the thread prints a message to say why.
 </p>
 <p>
-The property <code>jmeter.exit.check.pause</code> can be used to override the default pause of 2000ms (2secs).
-If set to <code>0</code>, then JMeter does not start the daemon thread.
+The property <code>jmeter.exit.check.pause</code> can be used to configure the delay before printing non-daemon threads.
+If set to <code>0</code> (default value), then JMeter does not print non-terminated threads at the end of the test.
 </p>
 </subsection>
 

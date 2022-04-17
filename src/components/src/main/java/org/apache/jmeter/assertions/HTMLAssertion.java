@@ -19,12 +19,14 @@ package org.apache.jmeter.assertions;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.MessageFormat;
 
 import org.apache.commons.lang3.StringUtils;
@@ -121,9 +123,9 @@ public class HTMLAssertion extends AbstractTestElement implements Serializable, 
                     || (!isErrorsOnly() && warningsAboveThreshold)) {
                 log.debug("Errors/warnings detected while parsing with tidy: {}", errbuf);
                 result.setFailure(true);
-                result.setFailureMessage(MessageFormat.format("Tidy Parser errors:   " + tidy.getParseErrors()
-                        + " (allowed " + getErrorThreshold() + ") " + "Tidy Parser warnings: "
-                        + tidy.getParseWarnings() + " (allowed " + getWarningThreshold() + ")", new Object[0]));
+                result.setFailureMessage(MessageFormat.format(
+                        "Tidy Parser errors: {0} (allowed {1}) Tidy Parser warnings: {2} (allowed {3})",
+                        tidy.getParseErrors(), getErrorThreshold(), tidy.getParseWarnings(), getWarningThreshold()));
                 // return with an error
 
             } else if (tidy.getParseErrors() > 0 || tidy.getParseWarnings() > 0) {
@@ -191,7 +193,7 @@ public class HTMLAssertion extends AbstractTestElement implements Serializable, 
 
         // check if filename defined
         if (StringUtils.isNotBlank(filename)) {
-            try (FileWriter writer = new FileWriter(filename, false)){
+            try (Writer writer = Files.newBufferedWriter(Paths.get(filename))) {
                 // write to file
                 writer.write(inOutput);
                 log.debug("writeOutput() -> output successfully written to file: {}", filename);

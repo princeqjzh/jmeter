@@ -87,7 +87,7 @@ public abstract class BaseJMSSampler extends AbstractSampler {
     // See BUG 45460. We need to keep the resource in order to interpret existing files
     private static final String REQUIRED = JMeterUtils.getResString("jms_auth_required"); // $NON-NLS-1$
 
-    public BaseJMSSampler() {
+    protected BaseJMSSampler() {
     }
 
     /**
@@ -337,6 +337,7 @@ public abstract class BaseJMSSampler extends AbstractSampler {
      * @param message JMS Message
      * @return String with message header values.
      */
+    @SuppressWarnings("JavaUtilDate")
     public static String getMessageHeaders(Message message) {
         final StringBuilder response = new StringBuilder(256);
         try {

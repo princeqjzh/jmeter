@@ -85,8 +85,6 @@ public class ReportGenerator {
                     .charAt(0);
 
     private static final String INVALID_CLASS_FMT = "Class name \"%s\" is not valid.";
-    private static final String INVALID_EXPORT_FMT = "Data exporter \"%s\" is unable to export data.";
-    private static final String NOT_SUPPORTED_CONVERSION_FMT = "Not supported conversion to \"%s\"";
 
     public static final String NORMALIZER_CONSUMER_NAME = "normalizer";
     public static final String BEGIN_DATE_CONSUMER_NAME = "beginDate";
@@ -104,6 +102,9 @@ public class ReportGenerator {
 
     private final File testFile;
     private final ReportGeneratorConfiguration configuration;
+
+    private static final boolean USE_JAVA_REGEX = !JMeterUtils.getPropDefault(
+            "jmeter.regex.engine", "oro").equalsIgnoreCase("oro");
 
     /**
      * ResultCollector used
@@ -175,6 +176,7 @@ public class ReportGenerator {
      * @param propertyKey the property key
      * @return the name of the property setter
      */
+    @SuppressWarnings("JdkObsolete")
     private static String getSetterName(String propertyKey) {
         Matcher matcher = POTENTIAL_CAMEL_CASE_PATTERN.matcher(propertyKey);
         StringBuffer buffer = new StringBuffer(); // NOSONAR Unfortunately Matcher does not support StringBuilder
@@ -268,6 +270,7 @@ public class ReportGenerator {
     /**
      * @return {@link FilterConsumer} that filter data based on date range
      */
+    @SuppressWarnings("JavaUtilDate")
     private FilterConsumer createFilterByDateRange() {
         FilterConsumer dateRangeFilter = new FilterConsumer();
         dateRangeFilter.setName(DATE_RANGE_FILTER_CONSUMER_NAME);
@@ -381,7 +384,7 @@ public class ReportGenerator {
             String error = String.format(INVALID_CLASS_FMT, className);
             throw new GenerationException(error, ex);
         } catch (ExportException ex) {
-            String error = String.format(INVALID_EXPORT_FMT, exporterName);
+            String error = String.format("Data exporter \"%s\" is unable to export data.", exporterName);
             throw new GenerationException(error, ex);
         }
     }
@@ -439,9 +442,7 @@ public class ReportGenerator {
                 // by property jmeter.reportgenerator.apdex_per_transaction
                 // key in entry below can be a hardcoded name or a regex
                 for (Map.Entry<String, Long[]> entry : configuration.getApdexPerTransaction().entrySet()) {
-                    org.apache.oro.text.regex.Pattern regex = JMeterUtils.getPatternCache().getPattern(entry.getKey());
-                    PatternMatcher matcher = JMeterUtils.getMatcher();
-                    if (sampleName != null && matcher.matches(sampleName, regex)) {
+                    if (isMatching(sampleName, entry.getKey())) {
                         Long satisfied = entry.getValue()[0];
                         Long tolerated = entry.getValue()[1];
                         if(log.isDebugEnabled()) {
@@ -456,6 +457,19 @@ public class ReportGenerator {
                 return info;
         });
         return apdexSummaryConsumer;
+    }
+
+    private boolean isMatching(String sampleName, String keyName) {
+        if (sampleName == null) {
+            return false;
+        }
+        if (USE_JAVA_REGEX) {
+            java.util.regex.Pattern pattern = JMeterUtils.compilePattern(keyName);
+            return pattern.matcher(sampleName).matches();
+        }
+        org.apache.oro.text.regex.Pattern regex = JMeterUtils.getPatternCache().getPattern(keyName);
+        PatternMatcher matcher = JMeterUtils.getMatcher();
+        return matcher.matches(sampleName, regex);
     }
 
     /**
@@ -533,7 +547,7 @@ public class ReportGenerator {
                             if (converter == null) {
                                 throw new GenerationException(
                                         String.format(
-                                                NOT_SUPPORTED_CONVERSION_FMT,
+                                                "Not supported conversion to \"%s\"",
                                                 parameterType.getName()));
                             }
                             method.invoke(obj, converter.convert(propertyValue));

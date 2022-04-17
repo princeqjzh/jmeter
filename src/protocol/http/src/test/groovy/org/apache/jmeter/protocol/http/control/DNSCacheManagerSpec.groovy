@@ -32,12 +32,15 @@ class DNSCacheManagerSpec extends Specification {
 
     private static final boolean localDNSResolverOK = {
         try {
+            if (VALID_DNS_SERVERS == null) {
+                return false
+            }
             new DNSCacheManager().resolve("apache.org")
             return true
         } catch (UnknownHostException uhe) {
             return false
         }
-    }
+    }.call() // <-- this avoids automatic casting of Closure to boolean which yields true in Groovy
 
     def sut = new DNSCacheManager()
 
@@ -78,6 +81,16 @@ class DNSCacheManagerSpec extends Specification {
             // uses real DNS server
             sut.resolve(VALID_HOSTNAME).contains(InetAddress.getByName(VALID_HOSTNAME))
             !sut.resolve(VALID_HOSTNAME).contains(InetAddress.getByName("127.0.0.1"))
+    }
+
+    @Requires({ localDNSResolverOK })
+    def "A custom resolver with a host entry will still fall back to system lookup"() {
+        given:
+            sut.setCustomResolver(true)
+            sut.addHost("jmeter.example.org", "127.0.0.1")
+        expect:
+            // uses real DNS server
+            sut.resolve(VALID_HOSTNAME).contains(InetAddress.getByName(VALID_HOSTNAME))
     }
 
     def "If using an invalid server resolve throws UnknownHostException"() {

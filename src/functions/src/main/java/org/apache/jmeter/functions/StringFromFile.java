@@ -18,11 +18,12 @@
 package org.apache.jmeter.functions;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.commons.io.IOUtils;
@@ -73,7 +74,7 @@ public class StringFromFile extends AbstractFunction implements TestStateListene
     private static final Logger log = LoggerFactory.getLogger(StringFromFile.class);
 
     // Only modified by static block so no need to synchronize subsequent read-only access
-    private static final List<String> desc = new LinkedList<>();
+    private static final List<String> desc = new ArrayList<>();
 
     private static final String KEY = "__StringFromFile";//$NON-NLS-1$
 
@@ -102,9 +103,6 @@ public class StringFromFile extends AbstractFunction implements TestStateListene
     private Object[] values;
 
     // @GuardedBy("this")
-    private FileReader myFileReader = null; // File reader
-
-    // @GuardedBy("this")
     private BufferedReader myBread = null; // Buffered reader
 
     // @GuardedBy("this")
@@ -124,7 +122,7 @@ public class StringFromFile extends AbstractFunction implements TestStateListene
 
     public StringFromFile() {
         if (log.isDebugEnabled()) {
-            log.debug("++++++++ Construct {}" + this);
+            log.debug("++++++++ Construct {}", this);
         }
     }
 
@@ -143,21 +141,14 @@ public class StringFromFile extends AbstractFunction implements TestStateListene
         } catch (IOException e) {
             log.error("closeFile() error: {}", e.toString(), e);//$NON-NLS-1$
         }
-
-        try {
-            myFileReader.close();
-        } catch (IOException e) {
-            log.error("closeFile() error: {}", e.toString(), e);//$NON-NLS-1$
-        }
     }
 
     private synchronized void openFile() {
         String tn = Thread.currentThread().getName();
         fileName = ((CompoundVariable) values[0]).execute();
 
-        String start = "";
         if (values.length >= PARAM_START) {
-            start = ((CompoundVariable) values[PARAM_START - 1]).execute();
+            String start = ((CompoundVariable) values[PARAM_START - 1]).execute();
             try {
                 // Low chances to be non numeric, we parse
                 myStart = Integer.parseInt(start);
@@ -218,14 +209,11 @@ public class StringFromFile extends AbstractFunction implements TestStateListene
 
         log.info("{} opening file {}", tn, fileName);//$NON-NLS-1$
         try {
-            myFileReader = new FileReader(fileName);
-            myBread = new BufferedReader(myFileReader);
+            myBread = Files.newBufferedReader(Paths.get(fileName));
         } catch (Exception e) {
             log.error("openFile() error: {}", e.toString());//$NON-NLS-1$
-            IOUtils.closeQuietly(myFileReader);
-            IOUtils.closeQuietly(myBread);
+            IOUtils.closeQuietly(myBread, null);
             myBread = null;
-            myFileReader = null;
         }
     }
 

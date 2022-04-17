@@ -31,6 +31,8 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -42,6 +44,8 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.threads.JMeterContextService;
 import org.apache.jorphan.gui.JFactory;
@@ -59,6 +63,8 @@ import org.apiguardian.api.API;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.thoughtworks.xstream.XStream;
 import com.thoughtworks.xstream.security.AnyTypePermission;
 import com.thoughtworks.xstream.security.NoTypePermission;
@@ -84,6 +90,20 @@ public class JMeterUtils implements UnitTestManager {
                 new Perl5Compiler());
     }
 
+    private static final class LazyJavaPatternCacheHolder {
+        private LazyJavaPatternCacheHolder() {
+            super();
+        }
+        public static final LoadingCache<Pair<String, Integer>, java.util.regex.Pattern> INSTANCE =
+                Caffeine
+                        .newBuilder()
+                        .maximumSize(getPropDefault("jmeter.regex.patterncache.size", 1000))
+                        .build(key -> {
+                            //noinspection MagicConstant
+                            return java.util.regex.Pattern.compile(key.getLeft(), key.getRight().intValue());
+                        });
+    }
+
     public static final String RES_KEY_PFX = "[res_key="; // $NON-NLS-1$
 
     private static final String EXPERT_MODE_PROPERTY = "jmeter.expertMode"; // $NON-NLS-1$
@@ -92,7 +112,8 @@ public class JMeterUtils implements UnitTestManager {
 
     private static volatile Properties appProperties;
 
-    private static final Vector<LocaleChangeListener> localeChangeListeners = new Vector<>();
+    private static final CopyOnWriteArrayList<LocaleChangeListener> localeChangeListeners =
+            new CopyOnWriteArrayList<>();
 
     private static volatile Locale locale;
 
@@ -190,15 +211,11 @@ public class JMeterUtils implements UnitTestManager {
      */
     public static void loadJMeterProperties(String file) {
         Properties p = new Properties(System.getProperties());
-        InputStream is = null;
-        try {
-            File f = new File(file);
-            is = new FileInputStream(f);
+        try (InputStream is = new FileInputStream(new File(file))) {
             p.load(is);
         } catch (IOException e) {
-            try {
-                is = ClassLoader.getSystemResourceAsStream(
-                        "org/apache/jmeter/jmeter.properties"); // $NON-NLS-1$
+            try (InputStream is = ClassLoader.getSystemResourceAsStream(
+                        "org/apache/jmeter/jmeter.properties")) { // $NON-NLS-1$
                 if (is == null) {
                     throw new RuntimeException("Could not read JMeter properties file:" + file);
                 }
@@ -206,8 +223,6 @@ public class JMeterUtils implements UnitTestManager {
             } catch (IOException ex) {
                 throw new RuntimeException("Could not read JMeter properties file:" + file);
             }
-        } finally {
-            JOrphanUtils.closeQuietly(is);
         }
         appProperties = p;
     }
@@ -235,19 +250,15 @@ public class JMeterUtils implements UnitTestManager {
      */
     public static Properties loadProperties(String file, Properties defaultProps) {
         Properties p = new Properties(defaultProps);
-        InputStream is = null;
-        try {
-            File f = new File(file);
-            is = new FileInputStream(f);
+        try (InputStream is = new FileInputStream(new File(file))) {
             p.load(is);
         } catch (IOException e) {
-            try {
-                final URL resource = JMeterUtils.class.getClassLoader().getResource(file);
-                if (resource == null) {
-                    log.warn("Cannot find {}", file);
-                    return defaultProps;
-                }
-                is = resource.openStream();
+            final URL resource = JMeterUtils.class.getClassLoader().getResource(file);
+            if (resource == null) {
+                log.warn("Cannot find {}", file);
+                return defaultProps;
+            }
+            try (InputStream is = resource.openStream()) {
                 if (is == null) {
                     log.warn("Cannot open {}", file);
                     return defaultProps;
@@ -257,10 +268,16 @@ public class JMeterUtils implements UnitTestManager {
                 log.warn("Error reading {} {}", file, ex.toString());
                 return defaultProps;
             }
-        } finally {
-            JOrphanUtils.closeQuietly(is);
         }
         return p;
+    }
+
+    public static java.util.regex.Pattern compilePattern(String expression) {
+        return compilePattern(expression, 0);
+    }
+
+    public static java.util.regex.Pattern compilePattern(String expression, int flags) {
+        return LazyJavaPatternCacheHolder.INSTANCE.get(Pair.of(expression, Integer.valueOf(flags)));
     }
 
     public static PatternCacheLRU getPatternCache() {
@@ -280,7 +297,6 @@ public class JMeterUtils implements UnitTestManager {
     public static Pattern getPattern(String expression) throws MalformedCachePatternException {
         return getPattern(expression, Perl5Compiler.READ_ONLY_MASK);
     }
-
     /**
      * Get a compiled expression from the pattern cache.
      *
@@ -427,12 +443,7 @@ public class JMeterUtils implements UnitTestManager {
      */
     private static void notifyLocaleChangeListeners() {
         LocaleChangeEvent event = new LocaleChangeEvent(JMeterUtils.class, locale);
-        @SuppressWarnings("unchecked") // clone will produce correct type
-        // TODO but why do we need to clone the list?
-        // ANS: to avoid possible ConcurrentUpdateException when unsubscribing
-        // Could perhaps avoid need to clone by using a modern concurrent list
-        Vector<LocaleChangeListener> listeners = (Vector<LocaleChangeListener>) localeChangeListeners.clone();
-        for (LocaleChangeListener listener : listeners) {
+        for (LocaleChangeListener listener : localeChangeListeners) {
             listener.localeChanged(event);
         }
     }
@@ -672,9 +683,9 @@ public class JMeterUtils implements UnitTestManager {
         try {
             String lineEnd = System.getProperty("line.separator"); // $NON-NLS-1$
             InputStream is = JMeterUtils.class.getClassLoader().getResourceAsStream(name);
-            if(is != null) {
-                try (Reader in = new InputStreamReader(is);
-                        BufferedReader fileReader = new BufferedReader(in)) {
+            if (is != null) {
+                try (Reader in = new InputStreamReader(is, StandardCharsets.UTF_8);
+                     BufferedReader fileReader = new BufferedReader(in)) {
                     return fileReader.lines()
                             .collect(Collectors.joining(lineEnd, "", lineEnd));
                 }
@@ -725,6 +736,28 @@ public class JMeterUtils implements UnitTestManager {
             }
         } catch (Exception e) {
             log.warn("Exception '{}' occurred when fetching boolean property:'{}', defaulting to: {}", e.getMessage(), propName, defaultVal);
+        }
+        return defaultVal;
+    }
+
+    /**
+     * Get an array of String if present and not empty, defaultValue if not present.
+     *
+     * @param propName
+     *            the name of the property.
+     * @param defaultVal
+     *            the default value.
+     * @return The PropDefault value
+     */
+    public static String[] getArrayPropDefault(String propName, String[] defaultVal) {
+        try {
+            String strVal = appProperties.getProperty(propName);
+            if (StringUtils.isNotBlank(strVal)) {
+                return strVal.trim().split("\\s+");
+            }
+        } catch (Exception e) {
+            log.warn("Exception '{}' occurred when fetching Array property:'{}', defaulting to: {}",
+                    e.getMessage(), propName, defaultVal != null ? Arrays.toString(defaultVal) : null);
         }
         return defaultVal;
     }
@@ -886,14 +919,17 @@ public class JMeterUtils implements UnitTestManager {
             System.out.println(errorMsg); // NOSONAR intentional
             return; // Done
         }
-        try {
-            JOptionPane.showMessageDialog(instance.getMainFrame(),
-                    formatMessage(errorMsg),
-                    titleMsg,
-                    JOptionPane.ERROR_MESSAGE);
-        } catch (HeadlessException e) {
-            log.warn("reportErrorToUser(\"{}\") caused", errorMsg, e);
-        }
+        String errorMessage = errorMsg;
+        SwingUtilities.invokeLater(() -> {
+            try {
+                JOptionPane.showMessageDialog(instance.getMainFrame(),
+                        formatMessage(errorMessage),
+                        titleMsg,
+                        JOptionPane.ERROR_MESSAGE);
+            } catch (HeadlessException e) {
+                log.warn("reportErrorToUser(\"{}\") caused", errorMessage, e);
+            }
+        });
     }
 
     /**
@@ -909,14 +945,16 @@ public class JMeterUtils implements UnitTestManager {
             System.out.println(msg); // NOSONAR intentional
             return; // Done
         }
-        try {
-            JOptionPane.showMessageDialog(instance.getMainFrame(),
-                    formatMessage(msg),
-                    titleMsg,
-                    JOptionPane.INFORMATION_MESSAGE);
-        } catch (HeadlessException e) {
-            log.warn("reportInfoToUser(\"{}\") caused", msg, e);
-        }
+        SwingUtilities.invokeLater(() -> {
+            try {
+                JOptionPane.showMessageDialog(instance.getMainFrame(),
+                        formatMessage(msg),
+                        titleMsg,
+                        JOptionPane.INFORMATION_MESSAGE);
+            } catch (HeadlessException e) {
+                log.warn("reportInfoToUser(\"{}\") caused", msg, e);
+            }
+        });
     }
 
     private static JScrollPane formatMessage(String errorMsg) {

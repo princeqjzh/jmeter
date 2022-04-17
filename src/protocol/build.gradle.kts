@@ -18,7 +18,7 @@
 subprojects {
     dependencies {
         api(project(":src:core"))
-        testCompile(project(":src:core", "testClasses"))
+        testImplementation(project(":src:core", "testClasses"))
     }
 }
 
@@ -47,7 +47,7 @@ project("http") {
     dependencies {
         // for SearchTextExtension
         api(project(":src:components"))
-        testCompile(project(":src:components", "testClasses"))
+        testImplementation(project(":src:components", "testClasses"))
 
         api("com.thoughtworks.xstream:xstream") {
             because("HTTPResultConverter uses XStream in public API")
@@ -70,9 +70,9 @@ project("http") {
         implementation("org.jodd:jodd-lagarto")
         implementation("org.jsoup:jsoup")
         implementation("oro:oro")
-        implementation("commons-collections:commons-collections")
+        implementation("org.apache.commons:commons-collections4")
         implementation("commons-net:commons-net")
-        implementation("com.helger:ph-commons") {
+        implementation("com.helger.commons:ph-commons") {
             // We don't really need to use/distribute jsr305
             exclude("com.google.code.findbugs", "jsr305")
         }
@@ -84,8 +84,19 @@ project("http") {
         implementation("org.apache.httpcomponents:httpmime")
         implementation("org.apache.httpcomponents:httpcore")
         implementation("org.brotli:dec")
+        implementation("com.miglayout:miglayout-swing")
+        implementation("com.fasterxml.jackson.core:jackson-core")
+        implementation("com.fasterxml.jackson.core:jackson-databind")
         testImplementation(testFixtures(project(":src:testkit-wiremock")))
         testImplementation("com.github.tomakehurst:wiremock-jre8")
+        // For some reason JMeter bundles just tika-core and tika-parsers without transitive
+        // dependencies. So we exclude those
+        implementation("org.apache.tika:tika-core") {
+            isTransitive = false
+        }
+        runtimeOnly("org.apache.tika:tika-parsers") {
+            isTransitive = false
+        }
     }
 }
 
@@ -114,7 +125,7 @@ project("jdbc") {
 
 project("jms") {
     dependencies {
-        testCompile(project(":src:core", "testClasses"))
+        testImplementation(project(":src:core", "testClasses"))
         api("com.github.ben-manes.caffeine:caffeine") {
             because("MessageRenderer#getValueFromFile(..., caffeine.cache.Cache)")
         }

@@ -17,8 +17,8 @@
 
 package org.apache.jmeter.functions;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.commons.lang3.RandomStringUtils;
@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
 public class RandomString extends AbstractFunction {
     private static final Logger log = LoggerFactory.getLogger(RandomString.class);
 
-    private static final List<String> desc = new LinkedList<>();
+    private static final List<String> desc = new ArrayList<>();
 
     private static final String KEY = "__RandomString"; //$NON-NLS-1$
 
@@ -75,7 +75,7 @@ public class RandomString extends AbstractFunction {
 
         String charsToUse = null;//means no restriction
         if (values.length >= CHARS) {
-            charsToUse = (values[CHARS - 1]).execute().trim();
+            charsToUse = values[CHARS - 1].execute().trim();
             if (charsToUse.length() <= 0) { // empty chars, return to null
                 charsToUse = null;
             }
@@ -83,7 +83,7 @@ public class RandomString extends AbstractFunction {
 
         String myName = "";//$NON-NLS-1$
         if (values.length >= PARAM_NAME) {
-            myName = (values[PARAM_NAME - 1]).execute().trim();
+            myName = values[PARAM_NAME - 1].execute().trim();
         }
 
         String myValue = null;

@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.jmeter.config.Arguments;
-import org.apache.jmeter.samplers.SampleResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,9 +52,6 @@ import org.slf4j.LoggerFactory;
 public abstract class AbstractBackendListenerClient implements BackendListenerClient {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractBackendListenerClient.class);
-
-    @SuppressWarnings("deprecation") // will be removed in 3.3
-    private static final org.apache.log.Logger oldLogger = org.apache.jorphan.logging.LoggingManager.getLoggerForClass();
 
     private UserMetric userMetrics = new UserMetric();
 
@@ -91,30 +87,10 @@ public abstract class AbstractBackendListenerClient implements BackendListenerCl
      * Get a Logger instance which can be used by subclasses to log information.
      * As this class is designed to be subclassed this is useful.
      *
-     * @return a Logger instance which can be used for logging
-     * @deprecated Will be removed in 3.3, use {@link AbstractBackendListenerClient#getNewLogger()}
-     */
-    @Deprecated
-    protected org.apache.log.Logger getLogger() {
-        return oldLogger;
-    }
-
-    /**
-     * Get a Logger instance which can be used by subclasses to log information.
-     * As this class is designed to be subclassed this is useful.
-     *
      * @return {@link Logger}  instance which can be used for logging
      */
     protected Logger getNewLogger() {
         return log;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public SampleResult createSampleResult(BackendListenerContext context, SampleResult result) {
-        return result;
     }
 
     /**

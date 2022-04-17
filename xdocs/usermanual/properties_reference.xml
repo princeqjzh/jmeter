@@ -117,7 +117,7 @@ defined in the <code>system.properties</code> file or on the command-line. The
     JVM does not support the specified cipher suites, or if the cipher suites
     supported by the HTTPS server do not overlap this list.  See the
     <a href="https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#Customization">JSSE
-	    Reference Guide.</a><br/>
+    Reference Guide.</a><br/>
     For example: <source>https.cipherSuites=TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256</source>
     If not specified, JMeter will use the default list of cipher suites
     supported by the JVM.
@@ -194,6 +194,17 @@ Defaults to: <code>true</code>
 <property name="jmeter.gui.refresh_period">
     Interval period in <code>ms</code> to process the events of the listeners.<br/>
     Defaults to: <code>500</code></property>
+</properties>
+</section>
+<section name="&sect-num;.4.1 Darklaf configuration" anchor="darklaf_config">
+<properties>
+    <property name="darklaf.decorations">
+        Enables custom window chrome when using a Darklaf Look And Feel.
+        Defaults to: <code>false</code></property>
+    <property name="darklaf.unifiedMenuBar">
+        Enables the unified menubar on Windows when using a Darklaf Look and Feel.<br/>
+        This property only has an effect if <code>darklaf.native</code> is <code>true</code>.
+        Defaults to: <code>true</code></property>
 </properties>
 </section>
 <section name="&sect-num;.5 Toolbar display" anchor="toolbar_display">
@@ -332,8 +343,8 @@ JMETER-SERVER</source>
     Defaults to: <code>1099</code>
 </property>
 <property name="client.rmi.localport">
-    Parameter that controls the RMI port used by the <code>RemoteSampleListenerImpl</code> (The Controller)<br/>
-    Default value is <code>0</code>, which means port is randomly assigned.
+    Parameter that controls the RMI ports used by <code>RemoteSampleListenerImpl</code> and <code>RemoteThreadsListenerImpl</code> (The Controller)<br/>
+    Default value is <code>0</code>, which means ports are randomly assigned.
     If this is non-zero, it will be used as the base for local port numbers for the client engine.
     At the moment JMeter will open up to three ports beginning with the port defined in this property.
     <note>You may need to open corresponding ports in the firewall on the Controller machine.</note>
@@ -454,6 +465,12 @@ JMETER-SERVER</source>
     Define the local host address to be used for multi-homed hosts,
     example <source>httpclient.localaddress=1.2.3.4</source>
 </property>
+<property name="http.proxyUser">
+    Set the user name to use with a proxy.
+</property>
+<property name="http.proxyPass">
+    Set the password to use with a proxy.
+</property>
 </properties>
 </section>
 <section name="&sect-num;.11 Kerberos properties" anchor="kerberos">
@@ -466,6 +483,9 @@ JMETER-SERVER</source>
 <property name="kerberos.spnego.strip_port">
     Should port be stripped from urls before constructing SPNs for SPNEGO authentication.
     Defaults to: <code>true</code>
+</property>
+<property name="kerberos.spnego.use_canonical_host_name">
+    Should the host name for constructing SPN be canonicalized for SPNEGO authentication.
 </property>
 <property name="kerberos.spnego.delegate_cred">
     Should SPNEGO authentication should use delegation of credentials.
@@ -531,11 +551,6 @@ JMETER-SERVER</source>
     <abbr title="time to live">TTL</abbr> (in milliseconds) represents an absolute value.
     No matter what, the connection will not be re-used beyond its TTL.<br/>
     Defaults to: <code>60000</code>
-</property>
-<property name="httpclient4.max_body_retain_size">
-    Max size in bytes of <code>PUT</code> body to retain in result sampler.
-    Bigger results will be clipped.<br/>
-    Defaults to: <code>327678</code> (bytes)
 </property>
 <property name="httpclient4.deflate_relax_mode">
     Ignore EOFException that some edgy application may emit to signal end of Deflated stream.<br/>
@@ -727,7 +742,7 @@ JMETER-SERVER</source>
 <property name="sampleresult.timestamp.start">
     Save the start time stamp instead of the end.<br/>
     This also affects the timestamp stored in result files.<br/>
-    Defaults to: <code>true</code>
+    Defaults to: <code>false</code>
 </property>
 <property name="sampleresult.useNanoTime">
     Whether to use <code>System.nanoTime()</code> - otherwise only use <code>System.currentTimeMillis()</code>.<br/>
@@ -765,6 +780,11 @@ JMETER-SERVER</source>
 <property name="proxy.number.requests">
     Add numeric suffix to Sampler names.<br/>
     defaults to: <code>true</code>
+</property>
+<property name="proxy.sampler_format">
+    Default format string for new samplers when <code>Use format string</code> is selected
+    as <code>naming scheme</code>.<br/>
+    Defaults to: <code>#{counter,number,000} - #{path} (#{name})</code>
 </property>
 <property name="proxy.excludes.suggested">
     List of URL patterns that will be added to URL Patterns to exclude.<br/>
@@ -1150,7 +1170,11 @@ JMETER-SERVER</source>
     Setting this value too high can lead to OOM Backend metrics sliding window size
     Defaults to: <code>5000</code>
 </property>
-
+<property name="backend_metrics_percentile_estimator">
+    Specify the <a href="https://commons.apache.org/proper/commons-math/javadocs/api-3.5/org/apache/commons/math3/stat/descriptive/rank/Percentile.EstimationType.html">Percentile Estimation Type</a> to use.<br/>
+    To make the values from the dashboard compatible with the Aggregate Report, use the value <code>R_3</code>.<br/>
+    Defaults to: <code>LEGACY</code>
+</property>
 <property name="backend_metrics_window_mode">
     Backend metrics window mode.
     Possible values:
@@ -1408,6 +1432,17 @@ JMETER-SERVER</source>
     If you want to use Rhino, set this value to <code>true</code></note>
     Defaults to: <code>false</code>
 </property>
+<property name="jmeter.regex.engine">
+    Ability to switch out the old Oro Regex implementation with the JDK built-in implementation.
+    Any value different to <code>oro</code> will disable the Oro implementation and enable the JDK based.
+    <note>We intend to switch the default to the JDK based one in a later version of JMeter.</note>
+    Defaults to: <code>oro</code>
+</property>
+<property name="jmeter.regex.patterncache.size">
+    We assist the JDK based Regex implementation by caching Pattern objects. The size of the
+    cache can be set with this setting. It can be disabled by setting it to <code>0</code>.
+    Defaults to: <code>1000</code>
+</property>
 <property name="jmeterengine.threadstop.wait">
     Number of milliseconds to wait for a thread to stop.<br/>
     Defaults to: <code>5000</code>
@@ -1492,6 +1527,18 @@ JMETER-SERVER</source>
     Set to zero to disable the size check and display the whole response.<br/>
     Defaults to: <code>10485760</code>
 </property>
+<property name="view.results.tree.max_line_size">
+    Maximum size (in characters) of the line in the displayed.<br/>
+    This property works around Bug 63620 since Swing hangs when displaying very long lines.<br/>
+    Set to zero to disable line wrapping.<br/>
+    Defaults to: <code>110000</code>
+</property>
+<property name="view.results.tree.soft_wrap_line_size">
+    Line size (in characters) to consider wrapping to make UI faster.<br/>
+    This property works around Bug 63620 since Swing hangs when displaying very long lines.<br/>
+    Set to zero to disable line wrapping.<br/>
+    Defaults to: <code>view.results.tree.max_line_size / 1.1f</code>
+</property>
 <property name="view.results.tree.renderers_order">
     Order of Renderers in View Results Tree.<br/>
     <note>Note full class names should be used for non JMeter core renderers</note>
@@ -1500,10 +1547,20 @@ JMETER-SERVER</source>
     Defaults to:
     <source>.RenderAsText,.RenderAsRegexp,.RenderAsCssJQuery,.RenderAsXPath,.RenderAsHTML,.RenderAsHTMLWithEmbedded,.RenderAsDocument,.RenderAsJSON,.RenderAsXML</source>
 </property>
+<property name="view.results.tree.simple_view_limit">
+    Configures maximum document length for text view before switching to a simpler view, that does not do line breaks.<br/>
+    Works probably best, when combined with a low setting of <code>view.results.tree.max_line_size</code>.
+    Can be switched off by setting the value to <code>-1</code>.<br/>
+    Defaults to: <code>10000</code>
+</property>
 <property name="document.max_size">
     Maximum size (in bytes) of Document that can be parsed by Tika engine<br/>
     Set to zero to disable the size check.<br/>
     Defaults to: <code>10485760</code>
+</property>
+<property name="text.kerning.max_document_size">
+    Configures the maximum document length for rendering with kerning enabled.<br/>
+    Defaults to: <code>10000</code>
 </property>
 <property name="JMSSampler.useSecurity.properties">
     JMS options.<br/>
@@ -1774,7 +1831,7 @@ JMETER-SERVER</source>
 </property>
 <property name="generate_report_ui.generation_timeout">
     Timeout in milliseconds for Report generation when using Tools &gt; Generate HTML report.<br/>
-    Defaults to: 120000
+    Defaults to: 300000
 </property>
 </properties>
 </section>
@@ -1935,6 +1992,28 @@ JMETER-SERVER</source>
     Path to XSL file used to generate Schematic View of Test Plan.<br/>
     When empty, JMeter will use the embedded one in src/core/org/apache/jmeter/gui/action/schematic.xsl<br/>
     No default value</property>
+</properties>
+</section>
+<section name="&sect-num;.46 Security Provider" anchor="securityprovider">
+<description>Advanced properties for documentation generation</description>
+<properties>
+    <property name="security.provider">
+        The value must be in this format: &lt;ClassName&gt;[:&lt;Postion&gt;[:&lt;ConfigString&gt;]]</property>.
+        Examples:<br/>
+        <dl>
+            <dt>org.bouncycastle.jce.provider.BouncyCastleProvider</dt>
+            <dd>Adds the <code>BouncyCastleProvider</code> to the next position available.</dd>
+            <dt>org.bouncycastle.jce.provider.BouncyCastleProvider:1</dt>
+            <dd>Adds the <code>BouncyCastleProvider</code>, at the first position.</dd>
+            <dt>org.bouncycastle.jsse.provider.BouncyCastleJsseProvider:2:BC</dt>
+            <dd>Adds the <code>BouncyCastleJsseProvider</code>, at the second position. And configure it to use the
+                BC provider.</dd>
+        </dl>
+    <property name="security.provider.&lt;n&gt;">
+        Replace the <code>&lt;n&gt;</code> with any number. The SecurityProviders will be added in the alphabetical
+        order of the property names. (First: <code>security.provider</code> and then <code>security.provider.2</code>, <code>security.provider.3</code>,...)
+        See property <code>security.provider</code>
+        </property>
 </properties>
 </section>
 <!--

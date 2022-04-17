@@ -24,6 +24,7 @@ import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -203,7 +204,17 @@ public class FunctionHelper extends JDialog implements ActionListener, ChangeLis
      */
     protected void initParameterPanel() throws InstantiationException, IllegalAccessException {
         Arguments args = new Arguments();
-        Function function = CompoundVariable.getFunctionClass(getFunctionName(functionList.getText())).newInstance();
+        Function function;
+        String functionName = getFunctionName(functionList.getText());
+        try {
+            function = CompoundVariable.getFunctionClass(functionName)
+                    .getDeclaredConstructor()
+                    .newInstance();
+        } catch (InvocationTargetException | NoSuchMethodException e) {
+            InstantiationException ex = new InstantiationException("Unable to instantiate " + functionName);
+            ex.initCause(e instanceof InvocationTargetException ? e.getCause() : e);
+            throw ex;
+        }
         List<String> argumentDesc = function.getArgumentDesc();
         for (String help : argumentDesc) {
             args.addArgument(help, ""); //$NON-NLS-1$
@@ -228,6 +239,7 @@ public class FunctionHelper extends JDialog implements ActionListener, ChangeLis
             Arguments args = (Arguments) parameterPanel.createTestElement();
             String functionCall = buildFunctionCallString(functionName, args);
             cutPasteFunction.setText(functionCall);
+            cutPasteFunction.setEnabled(true);
             GuiUtils.copyTextToClipboard(cutPasteFunction.getText());
             CompoundVariable function = new CompoundVariable(functionCall);
             JMeterContext threadContext = JMeterContextService.getContext();

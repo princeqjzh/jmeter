@@ -21,9 +21,9 @@ import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.net.Authenticator;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -31,12 +31,15 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.nio.file.Files;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.Enumeration;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +56,7 @@ import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.TreePath;
 
 import org.apache.commons.cli.avalon.CLArgsParser;
@@ -98,11 +102,13 @@ import org.apache.jmeter.threads.RemoteThreadsListenerTestElement;
 import org.apache.jmeter.util.BeanShellInterpreter;
 import org.apache.jmeter.util.BeanShellServer;
 import org.apache.jmeter.util.JMeterUtils;
+import org.apache.jmeter.util.SecurityProviderLoader;
 import org.apache.jmeter.util.ShutdownClient;
 import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.collections.SearchByClass;
 import org.apache.jorphan.gui.ComponentUtil;
 import org.apache.jorphan.gui.JMeterUIDefaults;
+import org.apache.jorphan.gui.ui.KerningOptimizer;
 import org.apache.jorphan.reflect.ClassTools;
 import org.apache.jorphan.util.HeapDumper;
 import org.apache.jorphan.util.JMeterException;
@@ -372,6 +378,9 @@ public class JMeter implements JMeterPlugin {
         System.out.println("Check : https://jmeter.apache.org/usermanual/best-practices.html");//NOSONAR
         System.out.println("================================================================================");//NOSONAR
 
+        KerningOptimizer.INSTANCE.setMaxTextLengthWithKerning(
+                JMeterUtils.getPropDefault("text.kerning.max_document_size", 10000)
+        );
         JMeterUIDefaults.INSTANCE.install();
 
         String jMeterLaf = LookAndFeelCommand.getPreferredLafCommand();
@@ -385,18 +394,26 @@ public class JMeter implements JMeterPlugin {
         SplashScreen splash = new SplashScreen();
         splash.showScreen();
         splash.setProgress(10);
+        log.debug("Apply HiDPI on fonts");
         JMeterUtils.applyHiDPIOnFonts();
+        splash.setProgress(20);
+        log.debug("Configure PluginManager");
         PluginManager.install(this, true);
-
-        JMeterTreeModel treeModel = new JMeterTreeModel();
         splash.setProgress(30);
+        log.debug("Setup tree");
+        JMeterTreeModel treeModel = new JMeterTreeModel();
         JMeterTreeListener treeLis = new JMeterTreeListener(treeModel);
         final ActionRouter instance = ActionRouter.getInstance();
+        splash.setProgress(40);
+        log.debug("populate command map");
         instance.populateCommandMap();
         splash.setProgress(60);
         treeLis.setActionHandler(instance);
+        log.debug("init instance");
+        splash.setProgress(70);
         GuiPackage.initInstance(treeLis, treeModel);
         splash.setProgress(80);
+        log.debug("constructing main frame");
         MainFrame main = new MainFrame(treeModel, treeLis);
         splash.setProgress(100);
         ComponentUtil.centerComponentInWindow(main, 80);
@@ -417,9 +434,11 @@ public class JMeter implements JMeterPlugin {
                 Load.insertLoadedTree(1, tree);
             } catch (ConversionException e) {
                 log.error("Failure loading test file", e);
+                splash.close();
                 JMeterUtils.reportErrorToUser(SaveService.CEtoString(e));
             } catch (Exception e) {
                 log.error("Failure loading test file", e);
+                splash.close();
                 JMeterUtils.reportErrorToUser(e.toString());
             }
         } else {
@@ -462,10 +481,12 @@ public class JMeter implements JMeterPlugin {
         try {
             initializeProperties(parser); // Also initialises JMeter logging
 
+            SecurityProviderLoader.addSecurityProvider(JMeterUtils.getJMeterProperties());
+
             Thread.setDefaultUncaughtExceptionHandler(
                     (Thread t, Throwable e) -> {
                     if (!(e instanceof ThreadDeath)) {
-                        log.error("Uncaught exception in thread " + t, e);
+                        log.error("Uncaught exception in thread {}", t, e);
                         System.err.println("Uncaught Exception " + e + " in thread " + t + ". See log file for details.");//NOSONAR
                     }
             });
@@ -504,11 +525,10 @@ public class JMeter implements JMeterPlugin {
             }
 
             // Set some (hopefully!) useful properties
-            long now=System.currentTimeMillis();
-            JMeterUtils.setProperty("START.MS",Long.toString(now));// $NON-NLS-1$
-            Date today=new Date(now); // so it agrees with above
-            JMeterUtils.setProperty("START.YMD",new SimpleDateFormat("yyyyMMdd").format(today));// $NON-NLS-1$ $NON-NLS-2$
-            JMeterUtils.setProperty("START.HMS",new SimpleDateFormat("HHmmss").format(today));// $NON-NLS-1$ $NON-NLS-2$
+            Instant now = Instant.now();
+            JMeterUtils.setProperty("START.MS",Long.toString(now.toEpochMilli()));// $NON-NLS-1$
+            JMeterUtils.setProperty("START.YMD", getFormatter("yyyyMMdd").format(now));// $NON-NLS-1$ $NON-NLS-2$
+            JMeterUtils.setProperty("START.HMS", getFormatter("HHmmss").format(now));// $NON-NLS-1$ $NON-NLS-2$
 
             if (parser.getArgumentById(VERSION_OPT) != null) {
                 displayAsciiArt();
@@ -544,7 +564,8 @@ public class JMeter implements JMeterPlugin {
                     ReportGenerator generator = new ReportGenerator(reportFile, null);
                     generator.generate();
                 } else if (parser.getArgumentById(NONGUI_OPT) == null) { // not non-GUI => GUI
-                    startGui(testFile);
+                    String initialTestFile = testFile;
+                    SwingUtilities.invokeAndWait(() -> startGui(initialTestFile));
                     startOptionalServers();
                 } else { // NON-GUI must be true
                     extractAndSetReportOutputFolder(parser, deleteResultFile);
@@ -576,6 +597,10 @@ public class JMeter implements JMeterPlugin {
             // FIXME Should we exit here ? If we are called by Maven or Jenkins
             System.exit(1);
         }
+    }
+
+    private static DateTimeFormatter getFormatter(String pattern) {
+        return DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.systemDefault());
     }
 
     /**
@@ -700,7 +725,7 @@ public class JMeter implements JMeterPlugin {
             File file = new File(jsr223Init);
             if(file.exists() && file.canRead()) {
                 String extension = StringUtils.defaultIfBlank(FilenameUtils.getExtension(jsr223Init), "Groovy");
-                try (FileReader reader = new FileReader(file)) {
+                try (Reader reader = Files.newBufferedReader(file.toPath())) {
                     ScriptEngineManager scriptEngineManager = new ScriptEngineManager();
                     ScriptEngine engine = scriptEngineManager.getEngineByExtension(extension);
                     if (engine == null) {
@@ -995,7 +1020,8 @@ public class JMeter implements JMeterPlugin {
     }
 
     // run test in batch mode
-     void runNonGui(String testFile, String logFile, boolean remoteStart, String remoteHostsString, boolean generateReportDashboard)
+    @SuppressWarnings("JdkObsolete")
+    void runNonGui(String testFile, String logFile, boolean remoteStart, String remoteHostsString, boolean generateReportDashboard)
             throws ConfigurationException {
         try {
             File f = new File(testFile);
@@ -1067,20 +1093,20 @@ public class JMeter implements JMeterPlugin {
             // when NON GUI mode is used
             clonedTree.add(clonedTree.getArray()[0], new RemoteThreadsListenerTestElement());
 
-            List<JMeterEngine> engines = new LinkedList<>();
+            List<JMeterEngine> engines = new ArrayList<>();
             println("Created the tree successfully using "+testFile);
             if (!remoteStart) {
                 JMeterEngine engine = new StandardJMeterEngine();
                 clonedTree.add(clonedTree.getArray()[0], new ListenToTest(
                         org.apache.jmeter.JMeter.ListenToTest.RunMode.LOCAL, false, reportGenerator));
                 engine.configure(clonedTree);
-                long now=System.currentTimeMillis();
-                println("Starting standalone test @ "+new Date(now)+" ("+now+")");
+                Instant now = Instant.now();
+                println("Starting standalone test @ "+ formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
                 engines.add(engine);
                 engine.runTest();
             } else {
                 java.util.StringTokenizer st = new java.util.StringTokenizer(remoteHostsString.trim(), ",");//$NON-NLS-1$
-                List<String> hosts = new LinkedList<>();
+                List<String> hosts = new ArrayList<>();
                 while (st.hasMoreElements()) {
                     hosts.add(((String) st.nextElement()).trim());
                 }
@@ -1103,6 +1129,14 @@ public class JMeter implements JMeterPlugin {
             log.error("Error in NonGUIDriver", e);
             throw new ConfigurationException("Error in NonGUIDriver " + e.getMessage(), e);
         }
+    }
+
+    private static String formatLikeDate(Instant instant) {
+        return DateTimeFormatter
+                .ofLocalizedDateTime(FormatStyle.LONG)
+                .withLocale(Locale.ROOT)
+                .withZone(ZoneId.systemDefault())
+                .format(instant);
     }
 
     /**
@@ -1153,8 +1187,7 @@ public class JMeter implements JMeterPlugin {
      * @param tree The {@link HashTree} to convert
      */
     private static void pConvertSubTree(HashTree tree) {
-        LinkedList<Object> copyList = new LinkedList<>(tree.list());
-        for (Object o  : copyList) {
+        for (Object o : new ArrayList<>(tree.list())) {
             if (o instanceof TestElement) {
                 TestElement item = (TestElement) o;
                 if (item.isEnabled()) {
@@ -1302,12 +1335,13 @@ public class JMeter implements JMeterPlugin {
             }
         }
 
+        @SuppressWarnings("JdkObsolete")
         private void endTest(boolean isDistributed) {
-            long now = System.currentTimeMillis();
+            Instant now = Instant.now();
             if (isDistributed) {
-                println("Tidying up remote @ "+new Date(now)+" ("+now+")");
+                println("Tidying up remote @ " + formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
             } else {
-                println("Tidying up ...    @ "+new Date(now)+" ("+now+")");
+                println("Tidying up ...    @ " + formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
             }
 
             if (isDistributed) {
@@ -1348,7 +1382,7 @@ public class JMeter implements JMeterPlugin {
             // This cannot be a JMeter class variable, because properties
             // are not initialised until later.
             final int pauseToCheckForRemainingThreads =
-                    JMeterUtils.getPropDefault("jmeter.exit.check.pause", 2000); // $NON-NLS-1$
+                    JMeterUtils.getPropDefault("jmeter.exit.check.pause", 0); // $NON-NLS-1$
 
             if (pauseToCheckForRemainingThreads > 0) {
                 Thread daemon = new Thread(){
@@ -1380,6 +1414,7 @@ public class JMeter implements JMeterPlugin {
     }
 
     @Override
+    @SuppressWarnings("JdkObsolete")
     public String[][] getIconMappings() {
         final String defaultIconProp = "org/apache/jmeter/images/icon.properties"; //$NON-NLS-1$
         final String iconSize = JMeterUtils.getPropDefault(TREE_ICON_SIZE, DEFAULT_TREE_ICON_SIZE);

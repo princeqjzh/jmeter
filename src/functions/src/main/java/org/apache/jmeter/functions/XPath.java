@@ -18,8 +18,8 @@
 package org.apache.jmeter.functions;
 
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.jmeter.engine.util.CompoundVariable;
@@ -50,7 +50,7 @@ public class XPath extends AbstractFunction {
 
     private static final String KEY = "__XPath"; // Function name //$NON-NLS-1$
 
-    private static final List<String> desc = new LinkedList<>();
+    private static final List<String> desc = new ArrayList<>();
 
     private Object[] values; // Parameter list
 
@@ -66,14 +66,12 @@ public class XPath extends AbstractFunction {
     @Override
     public synchronized String execute(SampleResult previousResult, Sampler currentSampler)
             throws InvalidVariableException {
-        String myValue = ""; //$NON-NLS-1$
-
         String fileName = ((CompoundVariable) values[0]).execute();
         String xpathString = ((CompoundVariable) values[1]).execute();
 
         log.debug("execute ({} {})", fileName, xpathString);
 
-        myValue = XPathWrapper.getXPathString(fileName, xpathString);
+        String myValue = XPathWrapper.getXPathString(fileName, xpathString);
 
         log.debug("execute value: {}", myValue);
 

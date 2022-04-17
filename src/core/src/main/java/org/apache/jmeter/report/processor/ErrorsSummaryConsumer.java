@@ -24,6 +24,8 @@ import org.apache.jmeter.report.utils.MetricUtils;
 import org.apache.jmeter.samplers.SampleSaveConfiguration;
 import org.apache.jmeter.util.JMeterUtils;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 /**
  * <p>
  * The class ErrorSummaryConsumer provides a consumer that calculates error
@@ -86,23 +88,31 @@ public class ErrorsSummaryConsumer extends AbstractSummaryConsumer<Long> {
      * @return String Error key for sample
      */
     static String getErrorKey(Sample sample) {
+        if (sample.getSuccess()) {
+            return "";
+        }
         String responseCode = sample.getResponseCode();
         String responseMessage = sample.getResponseMessage();
         String key = responseCode + (!StringUtils.isEmpty(responseMessage) ?
-                 "/" + StringEscapeUtils.escapeJson(StringEscapeUtils.escapeHtml4(responseMessage)) : "");
+                 "/" + escapeJson(responseMessage) : "");
+
         if (MetricUtils.isSuccessCode(responseCode) ||
-                (StringUtils.isEmpty(responseCode) &&
-                        !StringUtils.isEmpty(sample.getFailureMessage()))) {
+                StringUtils.isNotBlank(sample.getFailureMessage())) {
             key = MetricUtils.ASSERTION_FAILED;
             if (ASSERTION_RESULTS_FAILURE_MESSAGE) {
                 String msg = sample.getFailureMessage();
-                if (!StringUtils.isEmpty(msg)) {
-                    key = StringEscapeUtils.escapeJson(StringEscapeUtils.escapeHtml4(msg));
+                if (StringUtils.isNotBlank(msg)) {
+                    key = escapeJson(msg);
                 }
             }
         }
         return key;
     }
+
+    private static String escapeJson(String responseMessage) {
+        return new String(JsonStringEncoder.getInstance().quoteAsString(StringEscapeUtils.escapeHtml4(responseMessage)));
+    }
+
     /*
      * (non-Javadoc)
      *

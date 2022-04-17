@@ -18,6 +18,7 @@
 package org.apache.jmeter;
 
 // N.B. this must only use standard Java packages
+
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -25,13 +26,11 @@ import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.StringTokenizer;
 
@@ -61,7 +60,7 @@ public final class NewDriver {
     private static final List<Exception> EXCEPTIONS_IN_INIT = new ArrayList<>();
 
     static {
-        final List<URL> jars = new LinkedList<>();
+        final List<URL> jars = new ArrayList<>();
         final String initiaClasspath = System.getProperty(JAVA_CLASS_PATH);
 
         // Find JMeter home dir from the initial classpath
@@ -79,11 +78,14 @@ public final class NewDriver {
                 tmpDir = null;
             }
         } else {// e.g. started from IDE with full classpath
-            tmpDir = System.getProperty("jmeter.home","");// Allow override $NON-NLS-1$ $NON-NLS-2$
-            if (tmpDir.length() == 0) {
+            tmpDir = System.getProperty("jmeter.home", System.getenv("JMETER_HOME"));// Allow override $NON-NLS-1$ $NON-NLS-2$
+            if (tmpDir == null || tmpDir.length() == 0) {
                 File userDir = new File(System.getProperty("user.dir"));// $NON-NLS-1$
                 tmpDir = userDir.getAbsoluteFile().getParent();
             }
+        }
+        if (tmpDir == null) {
+            tmpDir = System.getenv("JMETER_HOME");
         }
         JMETER_INSTALLATION_DIRECTORY=tmpDir;
 
@@ -129,8 +131,13 @@ public final class NewDriver {
 
         // ClassFinder needs the classpath
         System.setProperty(JAVA_CLASS_PATH, initiaClasspath + classpath.toString());
-        loader = AccessController.doPrivileged(
-                (PrivilegedAction<DynamicClassLoader>) () ->
+        loader = createClassLoader(jars);
+    }
+
+    @SuppressWarnings("removal")
+    private static DynamicClassLoader createClassLoader(List<URL> jars) {
+        return java.security.AccessController.doPrivileged(
+                (java.security.PrivilegedAction<DynamicClassLoader>) () ->
                         new DynamicClassLoader(jars.toArray(new URL[jars.size()]))
         );
     }
@@ -343,13 +350,13 @@ public final class NewDriver {
         try {
             StringBuilder builder = new StringBuilder();
 
-            final Date date = new Date();
+            final Instant date = Instant.now();
             int fromIndex = 0;
             int begin = fileName.indexOf('\'', fromIndex);// $NON-NLS-1$
             int end;
 
             String format;
-            SimpleDateFormat dateFormat;
+            DateTimeFormatter dateFormat;
 
             while (begin != -1) {
                 builder.append(fileName.substring(fromIndex, begin));
@@ -361,7 +368,7 @@ public final class NewDriver {
                 }
 
                 format = fileName.substring(begin + 1, end);
-                dateFormat = new SimpleDateFormat(format);
+                dateFormat = DateTimeFormatter.ofPattern(format).withZone(ZoneId.systemDefault());
                 builder.append(dateFormat.format(date));
 
                 fromIndex = end + 1;

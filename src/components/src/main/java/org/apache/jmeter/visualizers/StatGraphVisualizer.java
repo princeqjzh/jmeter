@@ -81,6 +81,7 @@ import org.apache.jmeter.visualizers.gui.AbstractVisualizer;
 import org.apache.jorphan.gui.GuiUtils;
 import org.apache.jorphan.gui.JFactory;
 import org.apache.jorphan.gui.JLabeledTextField;
+import org.apache.jorphan.gui.JMeterUIDefaults;
 import org.apache.jorphan.gui.NumberRenderer;
 import org.apache.jorphan.gui.ObjectTableModel;
 import org.apache.jorphan.gui.ObjectTableSorter;
@@ -493,7 +494,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
         if (columnSelection.isSelected() && pattern != null) {
             matcher = pattern.matcher(sampleLabel);
         }
-        if ((matcher == null) || (matcher.find())) {
+        if (matcher == null || matcher.find()) {
             SamplingStatCalculator row = tableRows.computeIfAbsent(sampleLabel, label -> {
                 SamplingStatCalculator newRow = new SamplingStatCalculator(label);
                 newRows.addLast(newRow);
@@ -639,13 +640,16 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
         graphPanel.setLegendPlacement(StatGraphProperties.getPlacementNameMap()
                 .get(legendPlacementList.getSelectedItem()));
 
-        graphPanel.setTitleFont(new Font(StatGraphProperties.getFontNameMap().get(titleFontNameList.getSelectedItem()),
+        graphPanel.setTitleFont(JMeterUIDefaults.createFont(
+                StatGraphProperties.getFontNameMap().get(titleFontNameList.getSelectedItem()),
                 StatGraphProperties.getFontStyleMap().get(titleFontStyleList.getSelectedItem()),
                 Integer.parseInt((String) titleFontSizeList.getSelectedItem())));
-        graphPanel.setLegendFont(new Font(StatGraphProperties.getFontNameMap().get(fontNameList.getSelectedItem()),
+        graphPanel.setLegendFont(JMeterUIDefaults.createFont(
+                StatGraphProperties.getFontNameMap().get(fontNameList.getSelectedItem()),
                 StatGraphProperties.getFontStyleMap().get(fontStyleList.getSelectedItem()),
                 Integer.parseInt((String) fontSizeList.getSelectedItem())));
-        graphPanel.setValueFont(new Font(StatGraphProperties.getFontNameMap().get(valueFontNameList.getSelectedItem()),
+        graphPanel.setValueFont(JMeterUIDefaults.createFont(
+                StatGraphProperties.getFontNameMap().get(valueFontNameList.getSelectedItem()),
                 StatGraphProperties.getFontStyleMap().get(valueFontStyleList.getSelectedItem()),
                 Integer.parseInt((String) valueFontSizeList.getSelectedItem())));
 
@@ -943,7 +947,7 @@ public class StatGraphVisualizer extends AbstractVisualizer implements Clearable
 
     private JPanel createGraphTitlePane() {
         JPanel titleNamePane = new JPanel(new BorderLayout());
-        syncWithName.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        syncWithName.setFont(JMeterUIDefaults.createFont("SansSerif", Font.PLAIN, 10));
         titleNamePane.add(graphTitle, BorderLayout.CENTER);
         titleNamePane.add(syncWithName, BorderLayout.EAST);
 

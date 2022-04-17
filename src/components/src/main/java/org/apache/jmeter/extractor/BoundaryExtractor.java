@@ -163,6 +163,9 @@ public class BoundaryExtractor extends AbstractScopedTestElement implements Post
      * @return 0 if there is only one match, else the number of matches, this is used to remove
      */
     private int saveMatches(JMeterVariables vars, String refName, int matchNumber, List<String> matches) {
+        if (matchNumber >=0 && matches.isEmpty()) {
+            return 0;
+        }
         int matchCount = 0;
         if (matchNumber == 0) {
             saveRandomMatch(vars, refName, matches);
@@ -203,17 +206,34 @@ public class BoundaryExtractor extends AbstractScopedTestElement implements Post
     }
 
     private String getInputString(SampleResult result) {
-        String inputString = useUrl() ? result.getUrlAsString() // Bug 39707
-                : useHeaders() ? result.getResponseHeaders()
-                : useRequestHeaders() ? result.getRequestHeaders()
-                : useCode() ? result.getResponseCode() // Bug 43451
-                : useMessage() ? result.getResponseMessage() // Bug 43451
-                : useUnescapedBody() ? StringEscapeUtils.unescapeHtml4(result.getResponseDataAsString())
-                : useBodyAsDocument() ? Document.getTextFromDocument(result.getResponseData())
-                : result.getResponseDataAsString() // Bug 36898
-                ;
+        String inputString = chosenInput(result);
         log.debug("Input = '{}'", inputString);
         return inputString;
+    }
+
+    private String chosenInput(SampleResult result) {
+        if (useUrl()) {
+            return result.getUrlAsString(); // Bug 39707;
+        }
+        if (useHeaders()) {
+            return result.getResponseHeaders();
+        }
+        if (useRequestHeaders()) {
+            return result.getRequestHeaders();
+        }
+        if (useCode()) {
+            return result.getResponseCode(); // Bug 43451
+        }
+        if (useMessage()) {
+            return result.getResponseMessage(); // Bug 43451
+        }
+        if (useUnescapedBody()) {
+            return StringEscapeUtils.unescapeHtml4(result.getResponseDataAsString());
+        }
+        if (useBodyAsDocument()) {
+            return Document.getTextFromDocument(result.getResponseData());
+        }
+        return result.getResponseDataAsString(); // Bug 36898
     }
 
     private List<String> extract(
@@ -279,7 +299,7 @@ public class BoundaryExtractor extends AbstractScopedTestElement implements Post
             }
         }
 
-        return matches;
+        return Collections.unmodifiableList(matches);
     }
 
     public List<String> extractAll(

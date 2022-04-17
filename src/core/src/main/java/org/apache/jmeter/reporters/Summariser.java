@@ -20,7 +20,6 @@ package org.apache.jmeter.reporters;
 import java.io.Serializable;
 import java.text.DecimalFormat;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -122,8 +121,9 @@ public class Summariser extends AbstractTestElement
      * Called several times during test startup.
      * The name will not necessarily have been set at this point.
      */
+    @SuppressWarnings("StaticAssignmentInConstructor")
     public Summariser() {
-        super();
+        // TODO: is it needed to reset static field instanceCount in the instance constructor?
         synchronized (LOCK) {
             ACCUMULATORS.clear();
             instanceCount=0;
@@ -295,7 +295,7 @@ public class Summariser extends AbstractTestElement
      */
     @Override
     public void testEnded(String host) {
-        Set<Entry<String, Totals>> totals = null;
+        Set<Map.Entry<String, Totals>> totals = null;
         synchronized (LOCK) {
             instanceCount--;
             if (instanceCount <= 0){

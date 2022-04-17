@@ -99,6 +99,7 @@ public final class Utils {
         return messageProperties(new StringBuilder(), msg).toString();
     }
 
+    @SuppressWarnings("JdkObsolete")
     public static StringBuilder messageProperties(StringBuilder sb, Message msg){
         requestHeaders(sb, msg);
         sb.append("Properties:\n");
@@ -163,6 +164,7 @@ public final class Utils {
      * @throws NamingException
      *             if a naming problem occurs while getting the environment
      */
+    @SuppressWarnings("JdkObsolete")
     public static String getFromEnvironment(Context context, String key) throws NamingException {
         try {
             Hashtable<?,?> env = context.getEnvironment();
@@ -226,12 +228,15 @@ public final class Utils {
             String name = me.getKey();
             Object value = me.getValue();
             if (log.isDebugEnabled()) {
-                log.debug("Adding property [" + name + "=" + value + "]");
+                log.debug("Adding property [{}={}]", name, value);
             }
 
-            // WebsphereMQ does not allow corr. id. to be set using setStringProperty()
+            // Some JMS implemenations do not allow certain header fields to be set using properties
+            // e.g.: WebsphereMQ does not allow corr. id. to be set using setStringProperty()
             if ("JMSCorrelationID".equalsIgnoreCase(name)) { // $NON-NLS-1$
                 msg.setJMSCorrelationID((String)value);
+            } else if ("JMSType".equalsIgnoreCase(name)) { // $NON-NLS-1$
+                msg.setJMSType((String)value);
             } else {
                 msg.setObjectProperty(name, value);
             }

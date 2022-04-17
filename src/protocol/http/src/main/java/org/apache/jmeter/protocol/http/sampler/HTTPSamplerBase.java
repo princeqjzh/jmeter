@@ -18,6 +18,7 @@
 package org.apache.jmeter.protocol.http.sampler;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -40,6 +41,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.Predicate;
+import java.util.regex.PatternSyntaxException;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -100,7 +103,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
     implements TestStateListener, TestIterationListener, ThreadListener, HTTPConstantsInterface,
         Replaceable {
 
-    private static final long serialVersionUID = 242L;
+    private static final long serialVersionUID = 243L;
 
     private static final Logger log = LoggerFactory.getLogger(HTTPSamplerBase.class);
 
@@ -266,6 +269,9 @@ public abstract class HTTPSamplerBase extends AbstractSampler
     // Embedded URLs must match this RE (if provided)
     public static final String EMBEDDED_URL_RE = "HTTPSampler.embedded_url_re"; // $NON-NLS-1$
 
+    // Embedded URLs must not match this RE (if provided)
+    public static final String EMBEDDED_URL_EXCLUDE_RE = "HTTPSampler.embedded_url_exclude_re"; // $NON-NLS-1$
+
     public static final String MONITOR = "HTTPSampler.monitor"; // $NON-NLS-1$
 
     // Store MD5 hash instead of storing response
@@ -316,6 +322,9 @@ public abstract class HTTPSamplerBase extends AbstractSampler
     private static final boolean SEPARATE_CONTAINER =
             JMeterUtils.getPropDefault("httpsampler.separate.container", true); // $NON-NLS-1$
 
+    private static final boolean USE_JAVA_REGEX = !JMeterUtils.getPropDefault(
+            "jmeter.regex.engine", "oro").equalsIgnoreCase("oro");
+
     static {
         String[] parsers = JOrphanUtils.split(RESPONSE_PARSERS, " " , true);// returns empty array for null
         for (final String parser : parsers) {
@@ -340,7 +349,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
 
     ////////////////////// Code ///////////////////////////
 
-    public HTTPSamplerBase() {
+    protected HTTPSamplerBase() {
         setArguments(new Arguments());
     }
 
@@ -377,9 +386,9 @@ public abstract class HTTPSamplerBase extends AbstractSampler
         // If there is one file with no parameter name, the file will
         // be sent as post body.
         HTTPFileArg[] files = getHTTPFiles();
-        return (files.length == 1)
-                && (files[0].getPath().length() > 0)
-                && (files[0].getParamName().length() == 0);
+        return files.length == 1
+                && !files[0].getPath().isEmpty()
+                && files[0].getParamName().isEmpty();
     }
 
     /**
@@ -398,7 +407,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
             for (JMeterProperty jMeterProperty : getArguments()) {
                 hasArguments = true;
                 HTTPArgument arg = (HTTPArgument) jMeterProperty.getObjectValue();
-                if (arg.getName() != null && arg.getName().length() > 0) {
+                if (arg.getName() != null && !arg.getName().isEmpty()) {
                     return false;
                 }
             }
@@ -454,7 +463,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
      */
     public String getProtocol() {
         String protocol = getPropertyAsString(PROTOCOL);
-        if (protocol == null || protocol.length() == 0) {
+        if (protocol == null || protocol.isEmpty()) {
             return DEFAULT_PROTOCOL;
         }
         return protocol;
@@ -564,7 +573,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
     }
 
     /**
-     * @deprecated use {@link HTTPSamplerBase#getDoMultipartPost()}
+     * @deprecated use {@link HTTPSamplerBase#getDoMultipart()}
      * @return flag whether multiparts should be used
      */
     @Deprecated
@@ -1027,6 +1036,17 @@ public abstract class HTTPSamplerBase extends AbstractSampler
     }
 
     /**
+     * @return the regular (as String) expression that embedded URLs must not match
+     */
+    public String getEmbededUrlExcludeRE() {
+        return getPropertyAsString(EMBEDDED_URL_EXCLUDE_RE, "");
+    }
+
+    public void setEmbeddedUrlExcludeRE(String regex) {
+        setProperty(EMBEDDED_URL_EXCLUDE_RE, regex, "");
+    }
+
+    /**
      * Populates the provided HTTPSampleResult with details from the Exception.
      * Does not create a new instance, so should not be used directly to add a subsample.
      *
@@ -1089,7 +1109,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
             // If no encoding is specified by user, we will get it
             // encoded in UTF-8, which is what the HTTP spec says
             String queryString = getQueryString(getContentEncoding());
-            if (queryString.length() > 0) {
+            if (!queryString.isEmpty()) {
                 if (path.contains(QRY_PFX)) {// Already contains a prefix
                     pathAndQuery.append(QRY_SEP);
                 } else {
@@ -1221,7 +1241,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
                 name = arg;
                 value = "";
             }
-            if (name.length() > 0) {
+            if (!name.isEmpty()) {
                 log.debug("Name: {} Value: {} Metadata: {}", name, value, metaData);
                 // If we know the encoding, we can decode the argument value,
                 // to make it easier to read for the user
@@ -1284,7 +1304,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
             }
             return res;
         } catch (Exception e) {
-            return errorResult(e, new HTTPSampleResult());
+            return errorResult(e, new HTTPSampleResult(0));
         }
     }
 
@@ -1349,17 +1369,10 @@ public abstract class HTTPSamplerBase extends AbstractSampler
             res = lContainer;
 
             // Get the URL matcher
-            String re = getEmbeddedUrlRE();
-            Perl5Matcher localMatcher = null;
-            Pattern pattern = null;
-            if (re.length() > 0) {
-                try {
-                    pattern = JMeterUtils.getPattern(re);
-                    localMatcher = JMeterUtils.getMatcher();// don't fetch unless pattern compiles
-                } catch (MalformedCachePatternException e) { // NOSONAR
-                    log.warn("Ignoring embedded URL match string: {}", e.getMessage());
-                }
-            }
+            String allowRegex = getEmbeddedUrlRE();
+            Predicate<URL> allowPredicate = generateMatcherPredicate(allowRegex, "allow", true);
+            String excludeRegex = getEmbededUrlExcludeRE();
+            Predicate<URL> excludePredicate = generateMatcherPredicate(excludeRegex, "exclude", false);
 
             // For concurrent get resources
             final List<Callable<AsynSamplerResultHolder>> list = new ArrayList<>();
@@ -1396,8 +1409,11 @@ public abstract class HTTPSamplerBase extends AbstractSampler
                             setParentSampleSuccess(res, false);
                             continue;
                         }
-                        // I don't think localMatcher can be null here, but check just in case
-                        if (pattern != null && localMatcher != null && !localMatcher.matches(url.toString(), pattern)) {
+                        log.debug("allowPattern: {}, excludePattern: {}, url: {}", allowRegex, excludeRegex, url);
+                        if (!allowPredicate.test(url)) {
+                            continue; // we have a pattern and the URL does not match, so skip it
+                        }
+                        if (excludePredicate.test(url)) {
                             continue; // we have a pattern and the URL does not match, so skip it
                         }
                         try {
@@ -1458,6 +1474,29 @@ public abstract class HTTPSamplerBase extends AbstractSampler
             }
         }
         return res;
+    }
+
+    private Predicate<URL> generateMatcherPredicate(String regex, String explanation, boolean defaultAnswer) {
+        if (StringUtils.isEmpty(regex)) {
+            return s -> defaultAnswer;
+        }
+        if (USE_JAVA_REGEX) {
+            try {
+                java.util.regex.Pattern pattern = JMeterUtils.compilePattern(regex);
+                return s -> pattern.matcher(s.toString()).matches();
+            } catch (PatternSyntaxException e) {
+                log.warn("Ignoring embedded URL {} string: {}", explanation, e.getMessage());
+                return s -> defaultAnswer;
+            }
+        }
+        try {
+            Pattern pattern = JMeterUtils.getPattern(regex);
+            Perl5Matcher matcher = JMeterUtils.getMatcher();
+            return s -> matcher.matches(s.toString(), pattern);
+        } catch (MalformedCachePatternException e) { // NOSONAR
+            log.warn("Ignoring embedded URL {} string: {}", explanation, e.getMessage());
+            return s -> defaultAnswer;
+        }
     }
 
     static void registerParser(String contentType, String className) {
@@ -1877,7 +1916,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
     public byte[] readResponse(SampleResult sampleResult, InputStream in, long length) throws IOException {
 
         OutputStream w = null;
-        try { // NOSONAR No try with resource as performance is critical here
+        try (Closeable ignore = in) { // NOSONAR No try with resource as performance is critical here
             byte[] readBuffer = new byte[8192]; // 8kB is the (max) size to have the latency ('the first packet')
             int bufferSize = 32;// Enough for MD5
 
@@ -1948,8 +1987,7 @@ public abstract class HTTPSamplerBase extends AbstractSampler
             }
 
         } finally {
-            IOUtils.closeQuietly(in);
-            IOUtils.closeQuietly(w);
+            IOUtils.closeQuietly(w, null);
         }
     }
 

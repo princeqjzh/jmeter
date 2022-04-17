@@ -75,7 +75,7 @@ public class ModuleController extends GenericController implements ReplaceableCo
     }
 
     /**
-     * Sets the (@link JMeterTreeNode) which represents the controller which
+     * Sets the {@link JMeterTreeNode} which represents the controller which
      * this object is pointing to. Used for building the test case upon
      * execution.
      *
@@ -89,7 +89,7 @@ public class ModuleController extends GenericController implements ReplaceableCo
     }
 
     /**
-     * Gets the (@link JMeterTreeNode) for the Controller
+     * Gets the {@link JMeterTreeNode} for the Controller
      *
      * @return JMeterTreeNode
      */
@@ -192,6 +192,7 @@ public class ModuleController extends GenericController implements ReplaceableCo
         return tree;
     }
 
+    @SuppressWarnings("JdkObsolete")
     private void createSubTree(HashTree tree, JMeterTreeNode node) {
         Enumeration<?> e = node.children();
         while (e.hasMoreElements()) {
@@ -208,6 +209,7 @@ public class ModuleController extends GenericController implements ReplaceableCo
         return treeNode;
     }
 
+    @SuppressWarnings("JdkObsolete")
     private static void cloneChildren(JMeterTreeNode to, JMeterTreeNode from) {
         Enumeration<?> enumr = from.children();
         while (enumr.hasMoreElements()) {

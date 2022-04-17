@@ -71,6 +71,7 @@ import org.slf4j.LoggerFactory;
  * IIS and Netscape.
  */
 
+@SuppressWarnings("InconsistentCapitalization")
 public class TCLogParser implements LogParser {
     protected static final Logger log = LoggerFactory.getLogger(TCLogParser.class);
 
@@ -195,8 +196,9 @@ public class TCLogParser implements LogParser {
         return -1;// indicate that an error occurred
     }
 
+    @SuppressWarnings("DefaultCharset")
     private static BufferedReader getReader(File file) throws IOException {
-        if (! isGZIP(file)) {
+        if (!isGZIP(file)) {
             return new BufferedReader(new FileReader(file));
         }
         GZIPInputStream in = new GZIPInputStream(new FileInputStream(file));
@@ -277,7 +279,7 @@ public class TCLogParser implements LogParser {
         // we clean the line to get
         // rid of extra stuff
         String cleanedLine = this.cleanURL(line);
-        log.debug("parsing line: " + line);
+        log.debug("parsing line: {}", line);
         // now we set request method
         el.setProperty(HTTPSamplerBase.METHOD, RMETHOD);
         if (FILTER != null) {
@@ -312,7 +314,7 @@ public class TCLogParser implements LogParser {
      * @param el {@link TestElement} into which the url will be added
      */
     private void createUrl(String line, TestElement el) {
-        String paramString = null;
+        String paramString;
         // check the URL for "?" symbol
         paramString = this.stripFile(line, el);
         if (paramString != null) {

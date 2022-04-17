@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+import com.github.autostyle.gradle.AutostyleTask
+
 plugins {
     id("com.github.vlsi.ide")
 }
@@ -22,7 +24,7 @@ plugins {
 dependencies {
     api(project(":src:launcher"))
     api(project(":src:jorphan"))
-    testCompile(project(":src:jorphan", "testClasses"))
+    testImplementation(project(":src:jorphan", "testClasses"))
 
     api("bsf:bsf") {
         because("protected BSFManager BSFTestElement#getManager()")
@@ -60,7 +62,7 @@ dependencies {
     runtimeOnly("org.codehaus.groovy:groovy") {
         because("Groovy is a default JSR232 engine")
     }
-    arrayOf("datetime", "jmx", "json", "jsr223", "sql", "templates").forEach {
+    arrayOf("dateutil", "datetime", "jmx", "json", "jsr223", "sql", "templates").forEach {
         runtimeOnly("org.codehaus.groovy:groovy-$it") {
             because("Groovy is a default JSR232 engine")
         }
@@ -74,11 +76,23 @@ dependencies {
     implementation("com.github.weisj:darklaf-core")
     implementation("com.github.weisj:darklaf-theme")
     implementation("com.github.weisj:darklaf-property-loader")
+    implementation("com.github.weisj:darklaf-extensions-rsyntaxarea")
     implementation("com.miglayout:miglayout-swing")
     implementation("commons-codec:commons-codec") {
         because("DigestUtils")
     }
-    implementation("commons-collections:commons-collections")
+    implementation("commons-collections:commons-collections") {
+        because("Compatibility for old plugins")
+    }
+    implementation("org.jetbrains.lets-plot:lets-plot-batik") {
+        // See https://github.com/JetBrains/lets-plot/issues/471
+        exclude("org.jetbrains.kotlin", "kotlin-reflect")
+    }
+    implementation("org.jetbrains.lets-plot:lets-plot-kotlin-jvm") {
+        // See https://github.com/JetBrains/lets-plot/issues/471
+        exclude("org.jetbrains.kotlin", "kotlin-reflect")
+    }
+    implementation("org.apache.commons:commons-collections4")
     implementation("org.apache.commons:commons-math3") {
         because("Mean, DescriptiveStatistics")
     }
@@ -127,6 +141,23 @@ val versionClass by tasks.registering(Sync::class) {
 ide {
     generatedJavaSources(versionClass.get(), generatedVersionDir)
 }
+
+// <editor-fold defaultstate="collapsed" desc="Gradle can't infer task dependencies, however it sees they use the same directories. So we add the dependencies">
+plugins.withId("org.jetbrains.kotlin.jvm") {
+    tasks.named("compileKotlin") {
+        dependsOn(versionClass)
+    }
+}
+
+tasks.withType<Checkstyle>().matching { it.name == "checkstyleMain" }
+    .configureEach {
+        mustRunAfter(versionClass)
+    }
+
+tasks.withType<AutostyleTask>().configureEach {
+    mustRunAfter(versionClass)
+}
+// </editor-fold>
 
 tasks.jar {
     into("org/apache/jmeter/images") {

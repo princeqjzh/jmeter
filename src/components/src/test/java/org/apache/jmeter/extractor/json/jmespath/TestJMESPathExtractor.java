@@ -19,22 +19,22 @@ package org.apache.jmeter.extractor.json.jmespath;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.testelement.AbstractScopedTestElement;
 import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterContextService;
 import org.apache.jmeter.threads.JMeterVariables;
 import org.hamcrest.CoreMatchers;
-import org.junit.Test;
-import org.junit.experimental.runners.Enclosed;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.runners.Parameterized.Parameters;
 
-@RunWith(Enclosed.class)
-public class TestJMESPathExtractor {
+class TestJMESPathExtractor {
     private static final String DEFAULT_VALUE = "NONE"; // $NON-NLS-1$
     private static final String REFERENCE_NAME = "varname"; // $NON-NLS-1$
     private static final String REFERENCE_NAME_MATCH_NUMBER = "varname_matchNr"; // $NON-NLS-1$
@@ -58,247 +58,272 @@ public class TestJMESPathExtractor {
         return processor;
     }
 
-    @RunWith(Parameterized.class)
-    public static class OneMatchOnAllExtractedValues {
+    @Test
+    void testNoMatchNumberSet() {
+        JMeterVariables vars = new JMeterVariables();
+        SampleResult sampleResult = new SampleResult();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "[1]", false, "");
+        processor.setJmesPathExpression("[*]");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is("1"));
+    }
 
-        @Parameters
-        public static Collection<String[]> data() {
-            return Arrays.asList(new String[][] {
-                {"[\"one\"]", "[*]", "one", "1"},
-                {"{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", "a.b.c.d", "value", "1"},
-                {"{\r\n" + "  \"people\": [\r\n" + "    {\"first\": \"James\", \"last\": \"d\"},\r\n"
-                        + "    {\"first\": \"Jacob\", \"last\": \"e\"},\r\n"
-                        + "    {\"first\": \"Jayden\", \"last\": \"f\"},\r\n" + "    {\"missing\": \"different\"}\r\n"
-                        + "  ],\r\n" + "  \"foo\": {\"bar\": \"baz\"}\r\n" + "}", "people[2]",
-                        "{\"first\":\"Jayden\",\"last\":\"f\"}",
-                        "1"}
-            });
+    private static Stream<Arguments> dataOneMatch() {
+        return Stream.of(
+            Arguments.of("[\"one\"]", "[*]", "one", "1"),
+            Arguments.of("{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", "a.b.c.d", "value", "1"),
+            Arguments.of("{\r\n" + "  \"people\": [\r\n" + "    {\"first\": \"James\", \"last\": \"d\"},\r\n"
+                    + "    {\"first\": \"Jacob\", \"last\": \"e\"},\r\n"
+                    + "    {\"first\": \"Jayden\", \"last\": \"f\"},\r\n" + "    {\"missing\": \"different\"}\r\n"
+                    + "  ],\r\n" + "  \"foo\": {\"bar\": \"baz\"}\r\n" + "}", "people[2]",
+                    "{\"first\":\"Jayden\",\"last\":\"f\"}",
+                    "1")
+        );
+    }
+
+    @ParameterizedTest(name = "TestFromVars: {index} Extract from {0} with path {1} should result in {2} for match {3}")
+    @MethodSource("dataOneMatch")
+    void testOneMatchFromVars(String data, String jmesPath, String expectedResult, String expectedMatchNumber) {
+        testOneMatchOnAllExtractedValues(true, data, jmesPath, expectedResult, expectedMatchNumber);
+    }
+
+    @ParameterizedTest(name = "TestFromSampleResult: {index} Extract from {0} with path {1} should result in {2} for match {3}")
+    @MethodSource("dataOneMatch")
+    void testOneFromSampleResult(String data, String jmesPath, String expectedResult, String expectedMatchNumber) {
+        testOneMatchOnAllExtractedValues(false, data, jmesPath, expectedResult, expectedMatchNumber);
+    }
+
+    private void testOneMatchOnAllExtractedValues(boolean fromVars, String data, String jmesPath, String expectedResult, String expectedMatchNumber) {
+        JMeterVariables vars = new JMeterVariables();
+        SampleResult sampleResult = new SampleResult();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, data, fromVars, "-1");
+        processor.setJmesPathExpression(jmesPath);
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(CoreMatchers.nullValue()));
+        assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(expectedResult));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(expectedMatchNumber));
+
+        processor.clearOldRefVars(vars, REFERENCE_NAME);
+        assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(CoreMatchers.nullValue()));
+    }
+
+    private static Stream<Arguments> dataMultipleMatches() {
+        return Stream.of(
+            Arguments.of("[\"one\", \"two\"]", "[*]", new String[] {"one", "two"}, "2"),
+            Arguments.of("[\"a\", \"b\", \"c\", \"d\", \"e\", \"f\"]", "[0:3]", new String[] {"a", "b","c"}, "3"),
+            Arguments.of("{\r\n" + "  \"people\": [\r\n" + "    {\"first\": \"James\", \"last\": \"d\"},\r\n"
+                    + "    {\"first\": \"Jacob\", \"last\": \"e\"},\r\n"
+                    + "    {\"first\": \"Jayden\", \"last\": \"f\"},\r\n" + "    {\"missing\": \"different\"}\r\n"
+                    + "  ],\r\n" + "  \"foo\": {\"bar\": \"baz\"}\r\n" + "}", "people[:2].first", new String[] {"James", "Jacob"}, "2")
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataMultipleMatches")
+    void testMultipleMatchesOnAllExtractedValuesFromVars(String data, String jmesPath, String[] expectedResults, String expectedMatchNumber) {
+        testMultipleMatchesOnAllExtractedValues(true, data, jmesPath, expectedResults, expectedMatchNumber);
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataMultipleMatches")
+    void testMultipleMatchesOnAllExtractedValuesFromSampleResult(String data, String jmesPath, String[] expectedResults, String expectedMatchNumber) {
+        testMultipleMatchesOnAllExtractedValues(false, data, jmesPath, expectedResults, expectedMatchNumber);
+    }
+
+    private void testMultipleMatchesOnAllExtractedValues(boolean fromVars, String data, String jmesPath, String[] expectedResults, String expectedMatchNumber) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, data, fromVars, "-1");
+        // test1
+        processor.setJmesPathExpression(jmesPath);
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(CoreMatchers.nullValue()));
+        for (int i = 0; i < expectedResults.length; i++) {
+            assertThat(vars.get(REFERENCE_NAME + "_"+(i+1)), CoreMatchers.is(expectedResults[i]));
+        }
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(expectedMatchNumber));
+    }
+
+    private static final String TEST_DATA = "{\r\n" + "  \"people\": [\r\n" + "    {\"first\": \"James\", \"last\": \"d\", \"age\":10},\r\n"
+            + "    {\"first\": \"Jacob\", \"last\": \"e\", \"age\":20},\r\n"
+            + "    {\"first\": \"Jayden\", \"last\": \"f\", \"age\":30},\r\n"
+            + "    {\"missing\": \"different\"}\r\n" + "  ],\r\n" + "  \"foo\": {\"bar\": \"baz\"}\r\n"
+            + "}";
+
+    @Parameters
+    private static Stream<Arguments> dataMatchNumberMoreThanZero() {
+        return Stream.of(
+            Arguments.of(TEST_DATA, "people[:3].first", "1", "James", "3"),
+            Arguments.of(TEST_DATA, "people[:3].first", "2", "Jacob", "3"),
+            Arguments.of(TEST_DATA, "people[:3].first", "3", "Jayden", "3"),
+            Arguments.of(TEST_DATA, "people[:3].age", "3", "30", "3"),
+            Arguments.of(TEST_DATA, "people[:3].first", "4", DEFAULT_VALUE, "3")
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataMatchNumberMoreThanZero")
+    void testFromVars(String data, String jmesPath,
+            String matchNumber, String expectedResult, String expectedMatchNumber) {
+        testMatchNumberMoreThanZeroOn1ExtractedValue(true, data, jmesPath, matchNumber, expectedResult, expectedMatchNumber);
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataMatchNumberMoreThanZero")
+    void testFromSampleResult(String data, String jmesPath,
+            String matchNumber, String expectedResult, String expectedMatchNumber) {
+        testMatchNumberMoreThanZeroOn1ExtractedValue(false, data, jmesPath, matchNumber, expectedResult, expectedMatchNumber);
+    }
+
+    private void testMatchNumberMoreThanZeroOn1ExtractedValue(boolean fromVars, String data, String jmesPath,
+            String matchNumber, String expectedResult, String expectedMatchNumber) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, data, fromVars, "1");
+        processor.setMatchNumber(matchNumber);
+        processor.setJmesPathExpression(jmesPath);
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(expectedResult));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(expectedMatchNumber));
+    }
+
+    enum AccessMode {
+        ALL(AbstractScopedTestElement::setScopeAll),
+        PARENT(AbstractScopedTestElement::setScopeParent),
+        CHILDREN(AbstractScopedTestElement::setScopeChildren);
+
+        private Consumer<AbstractScopedTestElement> applier;
+
+        AccessMode(Consumer<AbstractScopedTestElement> applier) {
+            this.applier = applier;
         }
 
-        private String data;
-        private String jmesPath;
-        private String expectedResult;
-        private String expectedMatchNumber;
-
-        public OneMatchOnAllExtractedValues(String data, String jmesPath, String expectedResult, String expectedMatchNumber) {
-            this.data = data;
-            this.jmesPath = jmesPath;
-            this.expectedResult = expectedResult;
-            this.expectedMatchNumber = expectedMatchNumber;
-        }
-
-        @Test
-        public void testFromVars() {
-            test(true);
-        }
-
-        @Test
-        public void testFromSampleResult() {
-            test(false);
-        }
-
-        public void test(boolean fromVars) {
-            JMeterVariables vars = new JMeterVariables();
-            SampleResult sampleResult = new SampleResult();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, data, fromVars, "-1");
-            processor.setJmesPathExpression(jmesPath);
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(CoreMatchers.nullValue()));
-            assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(expectedResult));
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(expectedMatchNumber));
-
-            processor.clearOldRefVars(vars, REFERENCE_NAME);
-            assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(CoreMatchers.nullValue()));
+        void configure(AbstractScopedTestElement element) {
+            applier.accept(element);
         }
     }
 
-    @RunWith(Parameterized.class)
-    public static class MultipleMatchesOnAllExtractedValues {
-
-        @Parameters
-        public static Collection<Object[]> data() {
-            return Arrays.asList(new Object[][] {
-                {"[\"one\", \"two\"]", "[*]", new String[] {"one", "two"}, "2"},
-                {"[\"a\", \"b\", \"c\", \"d\", \"e\", \"f\"]", "[0:3]", new String[] {"a", "b","c"}, "3"},
-                {"{\r\n" + "  \"people\": [\r\n" + "    {\"first\": \"James\", \"last\": \"d\"},\r\n"
-                        + "    {\"first\": \"Jacob\", \"last\": \"e\"},\r\n"
-                        + "    {\"first\": \"Jayden\", \"last\": \"f\"},\r\n" + "    {\"missing\": \"different\"}\r\n"
-                        + "  ],\r\n" + "  \"foo\": {\"bar\": \"baz\"}\r\n" + "}", "people[:2].first", new String[] {"James", "Jacob"}, "2" },
-            });
-        }
-
-        private String data;
-        private String jmesPath;
-        private String[] expectedResults;
-        private String expectedMatchNumber;
-
-        public MultipleMatchesOnAllExtractedValues(String data, String jmesPath, String[] expectedResults, String expectedMatchNumber) {
-            this.data = data;
-            this.jmesPath = jmesPath;
-            this.expectedResults = expectedResults;
-            this.expectedMatchNumber = expectedMatchNumber;
-        }
-
-        @Test
-        public void testFromVars() {
-            test(true);
-        }
-
-        @Test
-        public void testFromSampleResult() {
-            test(false);
-        }
-
-        public void test(boolean fromVars) {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, data, fromVars, "-1");
-            // test1
-            processor.setJmesPathExpression(jmesPath);
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(CoreMatchers.nullValue()));
-            for (int i = 0; i < expectedResults.length; i++) {
-                assertThat(vars.get(REFERENCE_NAME + "_"+(i+1)), CoreMatchers.is(expectedResults[i]));
-            }
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(expectedMatchNumber));
-        }
+    private static Stream<Arguments> dataScopedSamples() {
+        return Stream.of(
+                Arguments.of(AccessMode.ALL, "a", "1", "23", "2"),
+                Arguments.of(AccessMode.ALL, "a", "2", "42", "2"),
+                Arguments.of(AccessMode.ALL, "b", "0", "parent_only", "1"),
+                Arguments.of(AccessMode.ALL, "c", "0", "child_only", "1"),
+                Arguments.of(AccessMode.PARENT, "a", "1", "23", "1"),
+                Arguments.of(AccessMode.PARENT, "b", "0", "parent_only", "1"),
+                Arguments.of(AccessMode.PARENT, "c", "0", "NONE", "0"),
+                Arguments.of(AccessMode.CHILDREN, "a", "1", "42", "1"),
+                Arguments.of(AccessMode.CHILDREN, "b", "0", "NONE", "0"),
+                Arguments.of(AccessMode.CHILDREN, "c", "0", "child_only", "1")
+        );
     }
 
-    @RunWith(Parameterized.class)
-    public static class MatchNumberMoreThanZeroOn1ExtractedValue {
+    @ParameterizedTest(name = "{index}: Mode: {0} Path: {1} MatchNr: {2} Result: {3} Count: {4}")
+    @MethodSource("dataScopedSamples")
+    void testRandomElementAllMatches(AccessMode accessMode, String path, String matchNumber, String resultObject, String resultCount) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": 23, \"b\": \"parent_only\"}", false, matchNumber);
+        SampleResult subSample = new SampleResult();
+        subSample.setResponseData("{\"a\": 42, \"c\": \"child_only\"}", null);
+        sampleResult.addSubResult(subSample);
 
-        private static final String TEST_DATA = "{\r\n" + "  \"people\": [\r\n" + "    {\"first\": \"James\", \"last\": \"d\", \"age\":10},\r\n"
-                + "    {\"first\": \"Jacob\", \"last\": \"e\", \"age\":20},\r\n"
-                + "    {\"first\": \"Jayden\", \"last\": \"f\", \"age\":30},\r\n"
-                + "    {\"missing\": \"different\"}\r\n" + "  ],\r\n" + "  \"foo\": {\"bar\": \"baz\"}\r\n"
-                + "}";
+        processor.setJmesPathExpression(path);
+        accessMode.configure(processor);
 
-        @Parameters
-        public static Collection<String[]> data() {
-            return Arrays.asList(new String[][] {
-                {TEST_DATA, "people[:3].first", "1", "James", "3"},
-                {TEST_DATA, "people[:3].first", "2", "Jacob", "3"},
-                {TEST_DATA, "people[:3].first", "3", "Jayden", "3"},
-                {TEST_DATA, "people[:3].age", "3", "30", "3"},
-                {TEST_DATA, "people[:3].first", "4", DEFAULT_VALUE, "3"}
-            });
-        }
-
-        private String data;
-        private String jmesPath;
-        private String expectedResult;
-        private String expectedMatchNumber;
-        private String matchNumber;
-
-        public MatchNumberMoreThanZeroOn1ExtractedValue(String data, String jmesPath,
-                String matchNumber, String expectedResult, String expectedMatchNumber) {
-            this.data = data;
-            this.jmesPath = jmesPath;
-            this.expectedResult = expectedResult;
-            this.matchNumber = matchNumber;
-            this.expectedMatchNumber = expectedMatchNumber;
-        }
-
-        @Test
-        public void testFromVars() {
-            test(true);
-        }
-
-        @Test
-        public void testFromSampleResult() {
-            test(false);
-        }
-
-        public void test(boolean fromVars) {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, data, fromVars, "1");
-            processor.setMatchNumber(matchNumber);
-            processor.setJmesPathExpression(jmesPath);
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(expectedResult));
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(expectedMatchNumber));
-        }
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(resultObject));
+        assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(resultCount));
     }
 
-    @RunWith(Parameterized.class)
-    public static class SourceVarOrResponse {
-        private boolean fromVariables;
+    private static Stream<Arguments> dataSourceVarOrResponse() {
+        return Stream.of(Arguments.of(Boolean.TRUE), Arguments.of(Boolean.FALSE));
+    }
 
-        @Parameters
-        public static Collection<Boolean> data() {
-            return Arrays.asList(new Boolean[] {Boolean.TRUE, Boolean.FALSE} );
-        }
+    @ParameterizedTest
+    @MethodSource("dataSourceVarOrResponse")
+    void testRandomElementOneMatch(boolean fromVariables) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", fromVariables, "0");
 
-        public SourceVarOrResponse(boolean fromVariables) {
-            this.fromVariables = fromVariables;
-        }
+        processor.setJmesPathExpression("a.b.c.d");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is("value"));
+        assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is("1"));
+    }
 
-        @Test
-        public void testRandomElementOneMatch() {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", fromVariables, "0");
+    @ParameterizedTest
+    @MethodSource("dataSourceVarOrResponse")
+    void testRandomElementMultipleMatches(boolean fromVariables) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "[\"one\", \"two\"]", fromVariables, "0");
 
-            processor.setJmesPathExpression("a.b.c.d");
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is("value"));
-            assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is("1"));
-        }
+        processor.setJmesPathExpression("[*]");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME),
+                CoreMatchers.is(CoreMatchers.anyOf(CoreMatchers.is("one"), CoreMatchers.is("two"))));
+        assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
+        assertThat(vars.get(REFERENCE_NAME + "_2"), CoreMatchers.is(CoreMatchers.nullValue()));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is("2"));
+    }
 
-        @Test
-        public void testRandomElementMultipleMatches() {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, "[\"one\", \"two\"]", fromVariables, "0");
+    @ParameterizedTest
+    @MethodSource("dataSourceVarOrResponse")
+    void testEmptySourceData(boolean fromVariables) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "", fromVariables, "-1");
 
-            processor.setJmesPathExpression("[*]");
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME),
-                    CoreMatchers.is(CoreMatchers.anyOf(CoreMatchers.is("one"), CoreMatchers.is("two"))));
-            assertThat(vars.get(REFERENCE_NAME + "_1"), CoreMatchers.is(CoreMatchers.nullValue()));
-            assertThat(vars.get(REFERENCE_NAME + "_2"), CoreMatchers.is(CoreMatchers.nullValue()));
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is("2"));
-        }
+        processor.setJmesPathExpression("[*]");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(CoreMatchers.nullValue()));
+    }
 
-        @Test
-        public void testEmptySourceData() {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, "", fromVariables, "-1");
+    @ParameterizedTest
+    @MethodSource("dataSourceVarOrResponse")
+    void testErrorInJMESPath(boolean fromVariables) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", fromVariables, "-1");
 
-            processor.setJmesPathExpression("[*]");
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is(CoreMatchers.nullValue()));
-        }
+        processor.setJmesPathExpression("$.k");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
+        assertThat(vars.get(REFERENCE_NAME+ "_1"), CoreMatchers.nullValue());
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.nullValue());
+    }
 
-        @Test
-        public void testErrorInJMESPath() {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", fromVariables, "-1");
+    @ParameterizedTest
+    @MethodSource("dataSourceVarOrResponse")
+    void testNoMatch(boolean fromVariables) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", fromVariables, "-1");
 
-            processor.setJmesPathExpression("$.k");
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
-            assertThat(vars.get(REFERENCE_NAME+ "_1"), CoreMatchers.nullValue());
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.nullValue());
-        }
+        processor.setJmesPathExpression("a.b.c.f");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
+        assertThat(vars.get(REFERENCE_NAME+ "_1"), CoreMatchers.nullValue());
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is("0"));
+    }
 
-        @Test
-        public void testNoMatch() {
-            SampleResult sampleResult = new SampleResult();
-            JMeterVariables vars = new JMeterVariables();
-            JMESPathExtractor processor = setupProcessor(vars, sampleResult, "{\"a\": {\"b\": {\"c\": {\"d\": \"value\"}}}}", fromVariables, "-1");
+    @ParameterizedTest
+    @MethodSource("dataSourceVarOrResponse")
+    void testNoInput(boolean fromVariables) {
+        SampleResult sampleResult = new SampleResult();
+        JMeterVariables vars = new JMeterVariables();
+        JMESPathExtractor processor = setupProcessor(vars, sampleResult, "", fromVariables, "0");
 
-            processor.setJmesPathExpression("a.b.c.f");
-            processor.process();
-            assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
-            assertThat(vars.get(REFERENCE_NAME+ "_1"), CoreMatchers.nullValue());
-            assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.is("0"));
-        }
+        processor.setJmesPathExpression("a.b");
+        processor.process();
+        assertThat(vars.get(REFERENCE_NAME), CoreMatchers.is(DEFAULT_VALUE));
+        assertThat(vars.get(REFERENCE_NAME+ "_1"), CoreMatchers.nullValue());
+        assertThat(vars.get(REFERENCE_NAME_MATCH_NUMBER), CoreMatchers.nullValue());
     }
 }

@@ -17,11 +17,12 @@
 
 package org.apache.jmeter.functions;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -44,7 +45,7 @@ public class TimeFunction extends AbstractFunction {
 
     private static final Pattern DIVISOR_PATTERN = Pattern.compile("/\\d+");
 
-    private static final List<String> desc = new LinkedList<>();
+    private static final List<String> desc = new ArrayList<>();
 
     // Only modified in class init
     private static final Map<String, String> aliases = new HashMap<>();
@@ -79,7 +80,7 @@ public class TimeFunction extends AbstractFunction {
     @Override
     public String execute(SampleResult previousResult, Sampler currentSampler) throws InvalidVariableException {
         String datetime;
-        if (format.length() == 0){// Default to milliseconds
+        if (format.isEmpty()) {// Default to milliseconds
             datetime = Long.toString(System.currentTimeMillis());
         } else {
             // Resolve any aliases
@@ -91,12 +92,14 @@ public class TimeFunction extends AbstractFunction {
                 long div = Long.parseLong(fmt.substring(1)); // should never case NFE
                 datetime = Long.toString(System.currentTimeMillis() / div);
             } else {
-                SimpleDateFormat df = new SimpleDateFormat(fmt);// Not synchronised, so can't be shared
-                datetime = df.format(new Date());
+                DateTimeFormatter df = DateTimeFormatter // Not synchronised, so can't be shared
+                        .ofPattern(fmt)
+                        .withZone(ZoneId.systemDefault());
+                datetime = df.format(Instant.now());
             }
         }
 
-        if (variable.length() > 0) {
+        if (!variable.isEmpty()) {
             JMeterVariables vars = getVariables();
             if (vars != null){// vars will be null on TestPlan
                 vars.put(variable, datetime);

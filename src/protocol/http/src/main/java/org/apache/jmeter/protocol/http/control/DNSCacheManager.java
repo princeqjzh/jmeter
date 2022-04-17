@@ -148,32 +148,26 @@ public class DNSCacheManager extends ConfigTestElement implements TestIterationL
         // explicitly maps the key to null
         // https://docs.oracle.com/javase/8/docs/api/java/util/LinkedHashMap.html
         if (result != null || cache.containsKey(host)) {
-            if (log.isDebugEnabled()) {
-                logCache("hit", host, result);
-            }
+            logCache("hit", host, result);
             return result;
         } else if (isStaticHost(host)) {
             InetAddress[] staticAddresses = fromStaticHost(host);
-            if (log.isDebugEnabled()) {
-                logCache("miss", host, staticAddresses);
-            }
+            logCache("miss", host, staticAddresses);
             cache.put(host, staticAddresses);
             return staticAddresses;
         } else {
             InetAddress[] addresses = requestLookup(host);
-            if (log.isDebugEnabled()) {
-                logCache("miss", host, addresses);
-            }
+            logCache("miss", host, addresses);
             cache.put(host, addresses);
             return addresses;
         }
     }
 
     private void logCache(String hitOrMiss, String host, InetAddress[] addresses) {
-        log.debug("Cache " + hitOrMiss + " thread#{}: {} => {}",
-                JMeterContextService.getContext().getThreadNum(),
-                host,
-                Arrays.toString(addresses));
+        if (log.isDebugEnabled()) {
+            log.debug("Cache {} thread#{}: {} => {}", hitOrMiss, JMeterContextService.getContext().getThreadNum(), host,
+                    Arrays.toString(addresses));
+        }
     }
 
     private boolean isStaticHost(String host) {
@@ -247,7 +241,7 @@ public class DNSCacheManager extends ConfigTestElement implements TestIterationL
      * @return array of {@link InetAddress} or null if lookup did not return result
      */
     private InetAddress[] requestLookup(String host) throws UnknownHostException {
-        InetAddress[] addresses = null;
+        InetAddress[] addresses;
 
         if (isCustomResolver()) {
             ExtendedResolver extendedResolver = getOrCreateResolver();
@@ -255,14 +249,11 @@ public class DNSCacheManager extends ConfigTestElement implements TestIterationL
                 throw new UnknownHostException("Could not resolve host:" + host
                         + ", failed to initialize resolver or no resolver found");
             } else if (extendedResolver.getResolvers().length > 0) {
-                addresses = customRequestLookup(host);
-            }
-        } else {
-            addresses = systemDefaultDnsResolver.resolve(host);
-            if (log.isDebugEnabled()) {
-                logCache("miss (resolved with system resolver)", host, addresses);
+                return customRequestLookup(host);
             }
         }
+        addresses = systemDefaultDnsResolver.resolve(host);
+        logCache("miss (resolved with system resolver)", host, addresses);
 
         return addresses;
     }

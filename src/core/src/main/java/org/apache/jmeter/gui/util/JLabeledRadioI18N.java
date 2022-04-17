@@ -21,7 +21,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.LinkedList;
 import java.util.List;
 
 import javax.swing.AbstractButton;
@@ -126,6 +125,7 @@ public class JLabeledRadioI18N extends JPanel implements JLabeledField, ActionLi
      * @param selected initially selected resource (if not null)
      *
      */
+    @SuppressWarnings("JdkObsolete")
     public void resetButtons(String[] resources, String selected) {
         Enumeration<AbstractButton> buttons = bGroup.getElements();
         List<AbstractButton> buttonsToRemove = new ArrayList<>(this.bGroup.getButtonCount());
@@ -160,6 +160,7 @@ public class JLabeledRadioI18N extends JPanel implements JLabeledField, ActionLi
      * @param resourceName name of resource whose button is to be selected
      */
     @Override
+    @SuppressWarnings("JdkObsolete")
     public void setText(String resourceName) {
         Enumeration<AbstractButton> en = this.bGroup.getElements();
         while (en.hasMoreElements()) {
@@ -204,8 +205,9 @@ public class JLabeledRadioI18N extends JPanel implements JLabeledField, ActionLi
      * excluded from the list.
      */
     @Override
+    @SuppressWarnings("JdkObsolete")
     public List<JComponent> getComponentList() {
-        List<JComponent> comps = new LinkedList<>();
+        List<JComponent> comps = new ArrayList<>();
         comps.add(mLabel);
         Enumeration<AbstractButton> en = this.bGroup.getElements();
         while (en.hasMoreElements()) {

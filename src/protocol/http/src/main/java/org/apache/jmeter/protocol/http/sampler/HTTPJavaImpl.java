@@ -29,7 +29,6 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -397,7 +396,7 @@ public class HTTPJavaImpl extends HTTPAbstractImpl {
     private String getOnlyCookieFromHeaders(HttpURLConnection conn, Map<String, String> securityHeaders) {
         String cookieHeader= getFromConnectionHeaders(conn, securityHeaders, ONLY_COOKIE, false).trim();
         if(!cookieHeader.isEmpty()) {
-            return cookieHeader.substring((HTTPConstants.HEADER_COOKIE_IN_REQUEST).length(), cookieHeader.length()).trim();
+            return cookieHeader.substring(HTTPConstants.HEADER_COOKIE_IN_REQUEST.length()).trim();
         }
         return "";
     }
@@ -474,9 +473,7 @@ public class HTTPJavaImpl extends HTTPAbstractImpl {
                 conn.setRequestProperty(HTTPConstants.HEADER_AUTHORIZATION, headerValue);
                 // Java hides request properties so we have to
                 // keep trace of it
-                Map<String, String> map = new HashMap<>(1);
-                map.put(HTTPConstants.HEADER_AUTHORIZATION, headerValue);
-                return map;
+                return Collections.singletonMap(HTTPConstants.HEADER_AUTHORIZATION, headerValue);
             }
         }
         return Collections.emptyMap();

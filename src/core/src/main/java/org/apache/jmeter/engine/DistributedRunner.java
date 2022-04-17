@@ -22,12 +22,15 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 
@@ -57,7 +60,7 @@ public class DistributedRunner {
     private final int retriesDelay;
     private final int retriesNumber;
     private PrintStream stdout = new PrintStream(new SilentOutputStream());
-    private PrintStream stderr = new PrintStream(new SilentOutputStream());
+    private PrintStream stdErr = new PrintStream(new SilentOutputStream());
     private final Map<String, JMeterEngine> engines = new HashMap<>();
 
 
@@ -74,7 +77,7 @@ public class DistributedRunner {
 
     public void init(List<String> addresses, HashTree tree) {
         // converting list into mutable version
-        List<String> addrs = new LinkedList<>(addresses);
+        List<String> addrs = new ArrayList<>(addresses);
 
         for (int tryNo = 0; tryNo < retriesNumber; tryNo++) {
             if (tryNo > 0) {
@@ -117,14 +120,23 @@ public class DistributedRunner {
         }
     }
 
+    private static String formatLikeDate(Instant instant) {
+        return DateTimeFormatter
+                .ofLocalizedDateTime(FormatStyle.LONG)
+                .withLocale(Locale.ROOT)
+                .withZone(ZoneId.systemDefault())
+                .format(instant);
+    }
+
     /**
      * Starts a remote testing engines
      *
      * @param addresses list of the DNS names or IP addresses of the remote testing engines
      */
     public void start(List<String> addresses) {
-        long now = System.currentTimeMillis();
-        println("Starting distributed test with remote engines: " + addresses + " @ " + new Date(now) + " (" + now + ")");
+        Instant now = Instant.now();
+        println("Starting distributed test with remote engines: "
+                + addresses + " @ " + formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
         List<String> startedEngines = new ArrayList<>(addresses.size());
         List<String> failedEngines = new ArrayList<>(addresses.size());
         for (String address : addresses) {
@@ -152,7 +164,7 @@ public class DistributedRunner {
      * Start all engines that were previously initiated
      */
     public void start() {
-        List<String> addresses = new LinkedList<>(engines.keySet());
+        List<String> addresses = new ArrayList<>(engines.keySet());
         start(addresses);
     }
 
@@ -177,7 +189,7 @@ public class DistributedRunner {
      * Stop all engines that were previously initiated
      */
     public void stop() {
-        List<String> addresses = new LinkedList<>(engines.keySet());
+        List<String> addresses = new ArrayList<>(engines.keySet());
         stop(addresses);
     }
 
@@ -250,13 +262,13 @@ public class DistributedRunner {
 
     private void errln(String s) {
         log.error(s);
-        stderr.println(s);
+        stdErr.println(s);
     }
 
     private void errln(String s, Exception e) {
         log.error(s, e);
-        stderr.println(s + ": ");
-        e.printStackTrace(stderr); // NOSONAR
+        stdErr.println(s + ": ");
+        e.printStackTrace(stdErr); // NOSONAR
     }
 
     public void setStdout(PrintStream stdout) {
@@ -264,7 +276,7 @@ public class DistributedRunner {
     }
 
     public void setStdErr(PrintStream stdErr) {
-        this.stderr = stdErr;
+        this.stdErr = stdErr;
     }
 
     private static class SilentOutputStream extends OutputStream {

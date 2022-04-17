@@ -21,8 +21,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.SocketTimeoutException;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.util.JOrphanUtils;
@@ -134,16 +134,20 @@ public class BinaryTCPClientImpl extends AbstractTCPClient {
                     break;
                 }
             }
-
-            IOUtils.closeQuietly(w); // For completeness
-            final String hexString = JOrphanUtils.baToHexString(w.toByteArray());
-            if(log.isDebugEnabled()) {
-                log.debug("Read: " + w.size() + "\n" + hexString);
+        } catch (SocketTimeoutException e) {
+            if (useEolByte) {
+                throw new ReadException("Socket timed out while looking for EOM", e,
+                        JOrphanUtils.baToHexString(w.toByteArray()));
             }
-            return hexString;
+            log.debug("Ignoring SocketTimeoutException, as we are not looking for EOM", e);
         } catch (IOException e) {
-            throw new ReadException("", e, JOrphanUtils.baToHexString(w.toByteArray()));
+            throw new ReadException("Problems while trying to read", e, JOrphanUtils.baToHexString(w.toByteArray()));
         }
+        final String hexString = JOrphanUtils.baToHexString(w.toByteArray());
+        if(log.isDebugEnabled()) {
+            log.debug("Read: {}\n{}", w.size(), hexString);
+        }
+        return hexString;
     }
 
 }

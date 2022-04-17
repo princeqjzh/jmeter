@@ -5,8 +5,7 @@ install: true
 
 # We can clean the caches via web at https://travis-ci.org/apache/jmeter/caches
 before_cache:
-  - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
-  - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
+  - F=CleanupGradleCache sh -x -c 'curl -O https://raw.githubusercontent.com/vlsi/cleanup-gradle-cache/v1.x/$F.java && javac -J-Xmx128m $F.java && java -Xmx128m $F'
   - rm -rf $HOME/.m2/repository/org/apache/jmeter
 
 cache:
@@ -17,7 +16,7 @@ cache:
 
 env:
   global:
-    - SKIP_TAR="-x distTar -x distTarSource"
+    - SKIP_TAR="-x distTar -x distTarSource -x distTarSha512 -x distTarSourceSha512"
     - ORG_GRADLE_PROJECT_checksumFailOn=build_finish
     - ORG_GRADLE_PROJECT_checksumPrint=true
 
@@ -26,6 +25,7 @@ matrix:
     # j-m-p does not seem to download all the dependencies: https://github.com/jmeter-maven-plugin/jmeter-maven-plugin/issues/187
     - name: jmeter-maven-plugin tests
     - name: jmeter-maven-plugin tests on s390x
+    - name: Tests with OpenJDK 11 on s390x
   include:
     - name: Tests with OpenJDK 8 + code coverage
       jdk: openjdk8
@@ -47,6 +47,20 @@ matrix:
         # This job verifies headless mode to ensure Apache JMeter is workable in headless as well
         # Spotless and Checkstyle are skipped here to save some time. They are verified anyway in Java 8 and Java 13 builds, so skipping them for Java 11 does not harm
         - ./gradlew build -Djava.awt.headless=true -Duser.language=fr -Duser.country=FR -PskipCheckstyle -PskipSpotless $SKIP_TAR
+    - name: Tests with OpenJDK 11 and Java Regex
+      jdk: openjdk11
+      addons:
+        apt:
+          packages:
+            - language-pack-fr
+      env:
+        - TZ=Pacific/Chatham # flips between +12:45 and +13:45
+        - LANG=fr_FR.UTF-8
+        - LC_ALL=fr_FR.UTF-8
+      script:
+        # This job verifies headless mode to ensure Apache JMeter is workable in headless as well
+        # Spotless and Checkstyle are skipped here to save some time. They are verified anyway in Java 8 and Java 13 builds, so skipping them for Java 11 does not harm
+        - ./gradlew build -Djava.awt.headless=true -Djmeter.properties.jmeter.regex.engine=java -Duser.language=fr -Duser.country=FR -PskipCheckstyle -PskipSpotless $SKIP_TAR
     - name: Tests with OpenJDK 11 on s390x
       os: linux
       arch: s390x
@@ -61,10 +75,9 @@ matrix:
         - export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-s390x/
         - export PATH=$JAVA_HOME/bin:$PATH
         - ./gradlew build -Djava.awt.headless=true -PskipCheckstyle -PskipSpotless $SKIP_TAR
-    # Java 12 is not here because it has been superceeded by Java 13
-    # Tests with Java 12 do not surface much new, so Java 11 (LTS) and Java 13 (non-LTS) are enough for "post Java 9" testing
-    - name: Tests with OpenJDK 14
-      jdk: openjdk14
+    # We test with so-called LTS releases: 8, 11, 17
+    - name: Tests with OpenJDK 17
+      jdk: openjdk17
       addons:
         apt:
           packages:
@@ -89,7 +102,7 @@ matrix:
       arch: s390x
       jdk: openjdk11
       script:
-        - wget http://www.eu.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz
+        - wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz
         - tar -xvzf apache-maven-3.6.3-bin.tar.gz
         - export PATH=`pwd`/apache-maven-3.6.3/bin/:$PATH
         - ./gradlew -PskipJavadoc publishToMavenLocal -Pjmeter.version=42.0 -PchecksumIgnore

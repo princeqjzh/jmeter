@@ -83,6 +83,7 @@ import org.apache.jmeter.gui.action.ActionNames;
 import org.apache.jmeter.gui.action.ActionRouter;
 import org.apache.jmeter.gui.action.KeyStrokes;
 import org.apache.jmeter.gui.action.LoadDraggedFile;
+import org.apache.jmeter.gui.action.LookAndFeelCommand;
 import org.apache.jmeter.gui.logging.GuiLogEventListener;
 import org.apache.jmeter.gui.logging.LogEventObject;
 import org.apache.jmeter.gui.tree.JMeterCellRenderer;
@@ -668,13 +669,18 @@ public class MainFrame extends JFrame implements TestStateListener, Remoteable, 
                         Object testElement = ((DefaultMutableTreeNode) treeNode).getUserObject();
                         if (testElement instanceof TestElement) {
                             String comment = ((TestElement) testElement).getComment();
-                            if (comment != null && comment.length() > 0) {
-                                return comment;
+                            if (StringUtils.isNotBlank(comment)) {
+                                return StringUtils.abbreviate(comment, 80);
                             }
                         }
                     }
                 }
-                return null;
+                if (LookAndFeelCommand.isDarklafTheme()) {
+                    // See https://github.com/weisJ/darklaf/issues/226#issuecomment-748478418
+                    return "";
+                } else {
+                    return null;
+                }
             }
         };
         treevar.setToolTipText("");
@@ -909,6 +915,14 @@ public class MainFrame extends JFrame implements TestStateListener, Remoteable, 
                 if (log.isWarnEnabled()) {
                     log.warn("Error awt title: {}", nsfe.toString()); // $NON-NLS-1$
                 }
+            } catch (RuntimeException e) {
+                // By default, strong encapsulation prevents setAccessible on java.desktop
+                if ("java.lang.reflect.InaccessibleObjectException".equals(e.getClass().getName())) {
+                    /* ignore */
+                    log.info("Unable to adjust awtAppClassName to {}", DEFAULT_APP_NAME);
+                    return;
+                }
+                throw e;
             }
         }
     }

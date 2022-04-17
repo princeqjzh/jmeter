@@ -17,10 +17,11 @@
 
 package org.apache.jmeter.functions;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.jmeter.engine.util.CompoundVariable;
@@ -40,7 +41,7 @@ import org.slf4j.LoggerFactory;
 public class DateTimeConvertFunction extends AbstractFunction {
     private static final Logger log = LoggerFactory.getLogger(DateTimeConvertFunction.class);
 
-    private static final List<String> desc = new LinkedList<>();
+    private static final List<String> desc = new ArrayList<>();
     private static final String KEY = "__dateTimeConvert";
 
     // Number of parameters expected - used to reject invalid calls
@@ -67,14 +68,18 @@ public class DateTimeConvertFunction extends AbstractFunction {
         String sourceDateFormat = values[1].execute();
         String targetDateFormat = values[2].execute();
         try {
-            SimpleDateFormat targetDateFormatter = new SimpleDateFormat(targetDateFormat);
+            DateTimeFormatter targetDateFormatter = DateTimeFormatter
+                    .ofPattern(targetDateFormat)
+                    .withZone(ZoneId.systemDefault());
             String newDate;
-            if (sourceDateFormat != null && sourceDateFormat.length() > 0) {
-                SimpleDateFormat sourceDateFormatter = new SimpleDateFormat(sourceDateFormat);
+            if (sourceDateFormat != null && !sourceDateFormat.isEmpty()) {
+                DateTimeFormatter sourceDateFormatter = DateTimeFormatter
+                        .ofPattern(sourceDateFormat)
+                        .withZone(ZoneId.systemDefault());
                 newDate = targetDateFormatter.format(sourceDateFormatter.parse(dateString));
             } else {
                 // dateString will be an epoch time
-                newDate = targetDateFormatter.format(new Date(Long.parseLong(dateString)));
+                newDate = targetDateFormatter.format(Instant.ofEpochMilli(Long.parseLong(dateString)));
             }
             addVariableValue(newDate, values, 3);
             return newDate;

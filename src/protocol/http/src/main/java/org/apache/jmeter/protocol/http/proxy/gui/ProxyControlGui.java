@@ -36,9 +36,10 @@ import java.awt.event.KeyListener;
 import java.io.IOException;
 import java.net.BindException;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.swing.BorderFactory;
@@ -61,6 +62,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.jmeter.control.Controller;
 import org.apache.jmeter.control.gui.LogicControllerGui;
 import org.apache.jmeter.control.gui.TreeNodeWrapper;
@@ -79,6 +81,7 @@ import org.apache.jmeter.gui.util.MenuFactory;
 import org.apache.jmeter.gui.util.PowerTableModel;
 import org.apache.jmeter.gui.util.VerticalPanel;
 import org.apache.jmeter.protocol.http.control.RecordingController;
+import org.apache.jmeter.protocol.http.proxy.Proxy;
 import org.apache.jmeter.protocol.http.proxy.ProxyControl;
 import org.apache.jmeter.protocol.http.sampler.HTTPSamplerFactory;
 import org.apache.jmeter.testelement.TestElement;
@@ -90,6 +93,8 @@ import org.apache.jorphan.gui.GuiUtils;
 import org.apache.jorphan.gui.JLabeledTextField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import net.miginfocom.swing.MigLayout;
 
 /**
  * GUI of HTTP(s) Test Script Recorder
@@ -143,6 +148,11 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
      * Set/clear the Use Keep-Alive box on the samplers (default is true)
      */
     private JCheckBox useKeepAlive;
+
+    /**
+     * Set/clear the Detect GraphQL Request box on the samplers (default is true)
+     */
+    private JCheckBox detectGraphQLRequest;
 
     /*
      * Use regexes to match the source data
@@ -229,7 +239,7 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
 
     private transient RecorderDialog recorderDialog;
 
-    private Component labelDefaultEncoding;
+    private JTextField httpSampleNameFormat;
 
     //+ action names
     private static final String ACTION_STOP = "stop"; // $NON-NLS-1$
@@ -269,6 +279,9 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
 
     // Used by itemListener
     private static final String PORT_FIELD_NAME = "portField"; // $NON-NLS-1$
+
+    static final String HTTP_SAMPLER_NAME_FORMAT = "proxy_http_sampler_name_format";
+
 
     public ProxyControlGui() {
         super();
@@ -317,6 +330,7 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
             model.setSamplerRedirectAutomatically(samplerRedirectAutomatically.isSelected());
             model.setSamplerFollowRedirects(samplerFollowRedirects.isSelected());
             model.setUseKeepAlive(useKeepAlive.isSelected());
+            model.setDetectGraphQLRequest(detectGraphQLRequest.isSelected());
             model.setSamplerDownloadImages(samplerDownloadImages.isSelected());
             model.setHTTPSampleNamingMode(httpSampleNamingMode.getSelectedIndex());
             model.setDefaultEncoding(defaultEncoding.getText());
@@ -326,6 +340,10 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
             model.setRegexMatch(regexMatch.isSelected());
             model.setContentTypeInclude(contentTypeInclude.getText());
             model.setContentTypeExclude(contentTypeExclude.getText());
+            httpSampleNameFormat.setEnabled(httpSampleNamingMode.getSelectedIndex() == 3);
+            if (StringUtils.isNotBlank(httpSampleNameFormat.getText())) {
+                model.setHttpSampleNameFormat(httpSampleNameFormat.getText());
+            }
             TreeNodeWrapper nw = (TreeNodeWrapper) targetNodes.getSelectedItem();
             if (nw == null) {
                 model.setTarget(null);
@@ -347,10 +365,8 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
 
     private List<String> getDataList(PowerTableModel pModel, String colName) {
         String[] dataArray = pModel.getData().getColumn(colName);
-        List<String> list = new LinkedList<>();
-        for (String data : dataArray) {
-            list.add(data);
-        }
+        List<String> list = new ArrayList<>();
+        Collections.addAll(list, dataArray);
         return list;
     }
 
@@ -381,6 +397,7 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         samplerRedirectAutomatically.setSelected(model.getSamplerRedirectAutomatically());
         samplerFollowRedirects.setSelected(model.getSamplerFollowRedirects());
         useKeepAlive.setSelected(model.getUseKeepalive());
+        detectGraphQLRequest.setSelected(model.getDetectGraphQLRequest());
         samplerDownloadImages.setSelected(model.getSamplerDownloadImages());
         httpSampleNamingMode.setSelectedIndex(model.getHTTPSampleNamingMode());
         prefixHTTPSampleName.setText(model.getPrefixHTTPSampleName());
@@ -390,6 +407,7 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         regexMatch.setSelected(model.getRegexMatch());
         contentTypeInclude.setText(model.getContentTypeInclude());
         contentTypeExclude.setText(model.getContentTypeExclude());
+        httpSampleNameFormat.setText(model.getHttpSampleNameFormat());
 
         reinitializeTargetCombo();// Set up list of potential targets and
                                     // enable listener
@@ -416,12 +434,12 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
     @Override
     public void itemStateChanged(ItemEvent e) {
         if (e.getSource() instanceof JComboBox) {
-            JComboBox combo = (JComboBox) e.getSource();
-            if(HTTP_SAMPLER_NAMING_MODE.equals(combo.getName())){
+            JComboBox<?> combo = (JComboBox<?>) e.getSource();
+            if (HTTP_SAMPLER_NAMING_MODE.equals(combo.getName())) {
                 model.setHTTPSampleNamingMode(httpSampleNamingMode.getSelectedIndex());
-                }
+                httpSampleNameFormat.setEnabled(httpSampleNamingMode.getSelectedIndex() == 3);
             }
-        else {
+        } else {
             enableRestart();
         }
     }
@@ -710,6 +728,8 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
             enableRestart();
         } else if(fieldName.equals(PREFIX_HTTP_SAMPLER_NAME)) {
             model.setPrefixHTTPSampleName(prefixHTTPSampleName.getText());
+        } else if (fieldName.equals(HTTP_SAMPLER_NAME_FORMAT)) {
+            model.setHttpSampleNameFormat(httpSampleNameFormat.getText());
         } else if(fieldName.equals(PROXY_PAUSE_HTTP_SAMPLER)) {
             try {
                 Long.parseLong(proxyPauseHTTPSample.getText());
@@ -743,6 +763,7 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         testPlanPanel.add(createTestPlanContentPanel());
         testPlanPanel.add(Box.createVerticalStrut(5));
         testPlanPanel.add(createHTTPSamplerPanel());
+        testPlanPanel.add(createGraphQLHTTPSamplerPanel());
         tabbedPane.add(JMeterUtils
                 .getResString("proxy_test_plan_creation"), testPlanPanel);
 
@@ -868,22 +889,16 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         regexMatch.addActionListener(this);
         regexMatch.setActionCommand(ENABLE_RESTART);
 
-        VerticalPanel mainPanel = new VerticalPanel();
-        mainPanel.setBorder(BorderFactory.createTitledBorder(
+        JPanel contentPanel = new JPanel(new MigLayout("fillx, wrap 3"));
+        contentPanel.setBorder(BorderFactory.createTitledBorder(
                 JMeterUtils.getResString("proxy_test_plan_content"))); // $NON-NLS-1$
+        addTargetToPanel(contentPanel);
+        addGroupingToPanel(contentPanel);
+        contentPanel.add(httpHeaders);
+        contentPanel.add(addAssertions);
+        contentPanel.add(regexMatch);
 
-        HorizontalPanel nodeCreationPanel = new HorizontalPanel();
-        nodeCreationPanel.add(createGroupingPanel());
-        nodeCreationPanel.add(httpHeaders);
-        nodeCreationPanel.add(addAssertions);
-        nodeCreationPanel.add(regexMatch);
-
-        HorizontalPanel targetPanel = new HorizontalPanel();
-        targetPanel.add(createTargetPanel());
-        mainPanel.add(targetPanel);
-        mainPanel.add(nodeCreationPanel);
-
-        return mainPanel;
+        return contentPanel;
     }
 
     private JPanel createHTTPSamplerPanel() {
@@ -922,6 +937,8 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         DefaultComboBoxModel<String> choice = new DefaultComboBoxModel<>();
         choice.addElement(JMeterUtils.getResString("sample_name_prefix")); // $NON-NLS-1$
         choice.addElement(JMeterUtils.getResString("sample_name_transaction")); // $NON-NLS-1$
+        choice.addElement(JMeterUtils.getResString("sample_name_suffix")); // $NON-NLS-1$
+        choice.addElement(JMeterUtils.getResString("sample_name_formatter")); // $NON-NLS-1$
         httpSampleNamingMode = new JComboBox<>(choice);
         httpSampleNamingMode.setName(HTTP_SAMPLER_NAMING_MODE);
         httpSampleNamingMode.addItemListener(this);
@@ -931,6 +948,10 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         prefixHTTPSampleName = new JTextField(20);
         prefixHTTPSampleName.addKeyListener(this);
         prefixHTTPSampleName.setName(PREFIX_HTTP_SAMPLER_NAME);
+
+        httpSampleNameFormat = new JTextField(20);
+        httpSampleNameFormat.addKeyListener(this);
+        httpSampleNameFormat.setName(HTTP_SAMPLER_NAME_FORMAT);
 
         proxyPauseHTTPSample = new JTextField(10);
         proxyPauseHTTPSample.addKeyListener(this);
@@ -942,71 +963,64 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         JLabel labelDefaultEncoding = new JLabel(JMeterUtils.getResString("proxy_default_encoding")); // $NON-NLS-1$
         labelDefaultEncoding.setLabelFor(defaultEncoding);
 
-        GridBagLayout gridBagLayout = new GridBagLayout();
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.FIRST_LINE_START;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.gridheight = 1;
-        gbc.gridwidth = 1;
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 1;
-        gbc.weighty = 1;
-        JPanel panel = new JPanel(gridBagLayout);
+        JPanel panel = new JPanel(new MigLayout("fillx, wrap 3"));
         panel.setBorder(BorderFactory.createTitledBorder(
                 JMeterUtils.getResString("proxy_sampler_settings"))); // $NON-NLS-1$
-        panel.add(httpSampleNamingMode, gbc.clone());
-        gbc.gridx++;
-        gbc.weightx = 3;
-        gbc.fill=GridBagConstraints.HORIZONTAL;
-        panel.add(prefixHTTPSampleName, gbc.clone());
-        gbc.gridx = 0;
-        gbc.gridy++;
-        panel.add(labelProxyPause, gbc.clone());
-        gbc.gridx++;
-        gbc.weightx = 3;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(proxyPauseHTTPSample, gbc.clone());
-        gbc.weightx = 1;
+        JLabel labelSampleTransactionName = new JLabel(JMeterUtils.getResString("sample_name_transaction"));
+        labelSampleTransactionName.setLabelFor(prefixHTTPSampleName);
+        panel.add(labelSampleTransactionName);
+        panel.add(prefixHTTPSampleName, "growx, span");
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        panel.add(labelDefaultEncoding, gbc.clone());
-        gbc.gridx++;
-        gbc.weightx = 3;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(defaultEncoding, gbc.clone());
-        gbc.weightx = 1;
+        JLabel labelNamingScheme = new JLabel(JMeterUtils.getResString("sample_naming_scheme"));
+        labelNamingScheme.setLabelFor(httpSampleNamingMode);
+        panel.add(labelNamingScheme, "split 2");
+        panel.add(httpSampleNamingMode);
+        panel.add(httpSampleNameFormat, "growx, span");
+        httpSampleNameFormat.setToolTipText(JMeterUtils.getResString("sample_naming_format_help"));
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.fill=GridBagConstraints.VERTICAL;
-        panel.add(samplerDownloadImages, gbc.clone());
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.fill=GridBagConstraints.VERTICAL;
-        panel.add(samplerRedirectAutomatically, gbc.clone());
-        gbc.gridx++;
-        gbc.fill=GridBagConstraints.HORIZONTAL;
-        panel.add(samplerFollowRedirects, gbc.clone());
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.fill=GridBagConstraints.VERTICAL;
-        panel.add(useKeepAlive, gbc.clone());
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.fill=GridBagConstraints.VERTICAL;
-        panel.add(labelSamplerType, gbc.clone());
-        gbc.gridx++;
-        gbc.fill=GridBagConstraints.HORIZONTAL;
-        panel.add(samplerTypeName, gbc.clone());
+        JLabel labelSetCounter = new JLabel(JMeterUtils.getResString("sample_creator_counter_value"));
+        JTextField counterValue = new JTextField(10);
+        labelSetCounter.setLabelFor(counterValue);
+        JButton buttonSetCounter = new JButton(JMeterUtils.getResString("sample_creator_set_counter"));
+        buttonSetCounter.addActionListener(e -> Proxy.setCounter(Integer.parseInt(counterValue.getText())));
+        panel.add(labelSetCounter);
+        panel.add(counterValue);
+        panel.add(buttonSetCounter);
+
+        panel.add(labelProxyPause);
+        panel.add(proxyPauseHTTPSample, "growx, span");
+
+        panel.add(labelDefaultEncoding);
+        panel.add(defaultEncoding, "growx, span");
+
+        panel.add(samplerDownloadImages);
+        panel.add(samplerRedirectAutomatically);
+        panel.add(samplerFollowRedirects);
+        panel.add(useKeepAlive, "wrap");
+
+        panel.add(labelSamplerType);
+        panel.add(samplerTypeName, "growx, span");
+
         return panel;
     }
 
-    private JPanel createTargetPanel() {
+    private JPanel createGraphQLHTTPSamplerPanel() {
+        detectGraphQLRequest = new JCheckBox(JMeterUtils.getResString("detect_graphql_request")); // $NON-NLS-1$
+        detectGraphQLRequest.setSelected(true);
+        detectGraphQLRequest.addActionListener(this);
+        detectGraphQLRequest.setActionCommand(ENABLE_RESTART);
+
+        JPanel panel = new JPanel(new MigLayout("fillx, wrap 3"));
+        panel.setBorder(BorderFactory.createTitledBorder(JMeterUtils.getResString("proxy_sampler_graphql_settings"))); // $NON-NLS-1$
+        panel.add(detectGraphQLRequest);
+
+        return panel;
+    }
+
+    private void addTargetToPanel(JPanel destPanel) {
         targetNodesModel = new DefaultComboBoxModel<>();
         targetNodes = new JComboBox<>(targetNodesModel);
-        targetNodes.setPrototypeDisplayValue(""); // $NON-NLS-1$ // Bug 56303 fixed the width of combo list
+        // Bug 56303 fixed the width of combo list
         JPopupMenu popup = (JPopupMenu) targetNodes.getUI().getAccessibleChild(targetNodes, 0); // get popup element
         JScrollPane scrollPane = findScrollPane(popup);
         if(scrollPane != null) {
@@ -1019,11 +1033,8 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         JLabel label = new JLabel(JMeterUtils.getResString("proxy_target")); // $NON-NLS-1$
         label.setLabelFor(targetNodes);
 
-        HorizontalPanel panel = new HorizontalPanel();
-        panel.add(label);
-        panel.add(targetNodes);
-
-        return panel;
+        destPanel.add(label);
+        destPanel.add(targetNodes, "growx, span");
     }
 
     private JScrollPane findScrollPane(JPopupMenu popup) {
@@ -1036,7 +1047,7 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         return null;
     }
 
-    private JPanel createGroupingPanel() {
+    private void addGroupingToPanel(JPanel destPanel) {
         DefaultComboBoxModel<String> m = new DefaultComboBoxModel<>();
         // Note: position of these elements in the menu *must* match the
         // corresponding ProxyControl.GROUPING_* values.
@@ -1046,18 +1057,14 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
         m.addElement(JMeterUtils.getResString("grouping_store_first_only")); // $NON-NLS-1$
         m.addElement(JMeterUtils.getResString("grouping_in_transaction_controllers")); // $NON-NLS-1$
         groupingMode = new JComboBox<>(m);
-        groupingMode.setPreferredSize(new Dimension(150, 20));
         groupingMode.setSelectedIndex(0);
         groupingMode.addItemListener(this);
 
         JLabel label2 = new JLabel(JMeterUtils.getResString("grouping_mode")); // $NON-NLS-1$
         label2.setLabelFor(groupingMode);
 
-        HorizontalPanel panel = new HorizontalPanel();
-        panel.add(label2);
-        panel.add(groupingMode);
-
-        return panel;
+        destPanel.add(label2);
+        destPanel.add(groupingMode, "growx, span");
     }
 
     private JPanel createContentTypePanel() {
@@ -1265,5 +1272,10 @@ public class ProxyControlGui extends LogicControllerGui implements JMeterGUIComp
     void setPrefixHTTPSampleName(String text) {
         prefixHTTPSampleName.setText(text);
         model.setPrefixHTTPSampleName(text);
+    }
+
+    void setSampleNameFormat(String text) {
+        httpSampleNameFormat.setText(text);
+        model.setHttpSampleNameFormat(text);
     }
 }

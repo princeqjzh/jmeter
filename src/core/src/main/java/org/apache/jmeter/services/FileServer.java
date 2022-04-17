@@ -22,18 +22,18 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.file.Files;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.commons.collections.ArrayStack;
 import org.apache.commons.io.input.BOMInputStream;
 import org.apache.jmeter.gui.JMeterFileFilter;
 import org.apache.jmeter.save.CSVSaveService;
@@ -189,15 +189,15 @@ public class FileServer {
         // Must first convert to absolute path names to ensure parents are available
         File parent = new File(DEFAULT_BASE).getAbsoluteFile();
         File f = base.getAbsoluteFile();
-        ArrayStack l = new ArrayStack();
+        ArrayDeque<String> l = new ArrayDeque<>();
         while (f != null) {
             if (f.equals(parent)){
                 if (l.isEmpty()){
                     break;
                 }
-                File rel = new File((String) l.pop());
+                File rel = new File(l.pop());
                 while(!l.isEmpty()) {
-                    rel = new File(rel, (String) l.pop());
+                    rel = new File(rel, l.pop());
                 }
                 return rel;
             }
@@ -423,7 +423,7 @@ public class FileServer {
         if (!fileEntry.file.canRead() || !fileEntry.file.isFile()) {
             throw new IllegalArgumentException("File "+ fileEntry.file.getName()+ " must exist and be readable");
         }
-        BOMInputStream fis = new BOMInputStream(new FileInputStream(fileEntry.file)); //NOSONAR
+        BOMInputStream fis = new BOMInputStream(Files.newInputStream(fileEntry.file.toPath())); //NOSONAR
         InputStreamReader isr = null;
         // If file encoding is specified, read using that encoding, otherwise use default platform encoding
         String charsetName = fileEntry.charSetEncoding;
@@ -432,7 +432,9 @@ public class FileServer {
         } else if (fis.hasBOM()) {
             isr = new InputStreamReader(fis, fis.getBOM().getCharsetName());
         } else {
-            isr = new InputStreamReader(fis);
+            @SuppressWarnings("DefaultCharset")
+            final InputStreamReader withPlatformEncoding = new InputStreamReader(fis);
+            isr = withPlatformEncoding;
         }
         return new BufferedReader(isr);
     }
@@ -454,14 +456,16 @@ public class FileServer {
     }
 
     private BufferedWriter createBufferedWriter(FileEntry fileEntry) throws IOException {
-        FileOutputStream fos = new FileOutputStream(fileEntry.file);
+        OutputStream fos = Files.newOutputStream(fileEntry.file.toPath());
         OutputStreamWriter osw;
         // If file encoding is specified, write using that encoding, otherwise use default platform encoding
         String charsetName = fileEntry.charSetEncoding;
         if(!JOrphanUtils.isBlank(charsetName)) {
             osw = new OutputStreamWriter(fos, charsetName);
         } else {
-            osw = new OutputStreamWriter(fos);
+            @SuppressWarnings("DefaultCharset")
+            final OutputStreamWriter withPlatformEncoding = new OutputStreamWriter(fos);
+            osw = withPlatformEncoding;
         }
         return new BufferedWriter(osw);
     }

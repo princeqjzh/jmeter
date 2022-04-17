@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import org.apache.jmeter.junit.JMeterTestCase;
+import org.apache.jmeter.protocol.http.control.CacheManager.CacheEntry;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.protocol.http.util.HTTPConstants;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,8 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
 
     protected abstract void cacheResult(HTTPSampleResult result) throws Exception;
 
+    protected abstract void cacheResult(HTTPSampleResult sampleResultOK, boolean hasCachingHeaders) throws Exception;
+
     protected abstract void setLastModified(String lastModified);
 
     protected abstract void checkRequestHeader(String requestHeader, String expectedValue);
@@ -85,7 +88,8 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
     protected abstract void setRequestHeaders();
 
     protected void sleepTill(long deadline) {
-        while (System.currentTimeMillis() < deadline) {
+        long roundedToUpperSecond = Math.round(Math.ceil(deadline / 1000.0)) * 1000;
+        while (System.currentTimeMillis() < roundedToUpperSecond) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -100,61 +104,50 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
     public void testExpiresBug59962() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         long start = System.currentTimeMillis();
         setExpires(makeDate(new Date(start + 2000)));
         cacheResultWithGivenCode("304");
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
+        assertValidEntry();
         sleepTill(start + 2010);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertInvalidEntry();
     }
 
     @Test
     public void testExpires() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         long start = System.currentTimeMillis();
         setExpires(makeDate(new Date(start + 2000)));
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
+        assertValidEntry();
         sleepTill(start + 2010);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertInvalidEntry();
     }
 
     @Test
     public void testNoExpires() throws Exception {
         this.cacheManager.setUseExpires(false);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         setExpires(makeDate(new Date(System.currentTimeMillis() + 2000)));
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertInvalidEntry();
     }
 
     @Test
     public void testCacheControl() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         long start = System.currentTimeMillis();
         setExpires(makeDate(new Date(start)));
         setCacheControl("public, max-age=1");
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
-        sleepTill(start + 1010);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertValidEntry();
+        sleepTill(start + 2010);
+        assertInvalidEntry();
     }
 
     @Test
@@ -214,6 +207,7 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
         return result.toString();
     }
 
+    @SuppressWarnings("deprecation")
     private void testCacheVary(String vary, Header[] origHeaders, Header[] differentHeaders) throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
@@ -235,40 +229,34 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
     public void testCacheHEAD() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         setExpires(makeDate(new Date(System.currentTimeMillis())));
         setCacheControl("public, max-age=5");
         HTTPSampleResult sampleResultHEAD = getSampleResultWithSpecifiedResponseCode("200");
         sampleResultHEAD.setHTTPMethod("HEAD");
         cacheResult(sampleResultHEAD);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
     }
 
     @Test
     public void testPrivateCache() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         long start = System.currentTimeMillis();
         setExpires(makeDate(new Date(start)));
         setCacheControl("private, max-age=1");
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
-        sleepTill(start + 1020);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should still find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not now find valid entry");
+        assertValidEntry();
+        sleepTill(start + 2020);
+        assertInvalidEntry();
     }
 
     @Test
     public void testNoCacheControlNoMaxAgeNoExpire() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         // No Cache-Control
         // Expires is not set, however RFC recommends to use
         // response_is_fresh = (freshness_lifetime > current_age)
@@ -278,19 +266,16 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
         long age = 30 * 1000; // 30 seconds
         setLastModified(makeDate(new Date(start - age)));
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
-        sleepTill(start + age / 10 + 10);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertValidEntry();
+        sleepTill(start + age / 10 + 1010);
+        assertInvalidEntry();
     }
 
     @Test
     public void testPrivateCacheNoMaxAgeNoExpire() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         setCacheControl("private");
         // Expires is not set, however RFC recommends to use
         // response_is_fresh = (freshness_lifetime > current_age)
@@ -300,68 +285,85 @@ public abstract class TestCacheManagerBase extends JMeterTestCase {
         long age = 30 * 1000; // 30 seconds
         setLastModified(makeDate(new Date(start - age)));
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
-        sleepTill(start + age / 10 + 10);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertValidEntry();
+        sleepTill(start + age / 10 + 1010);
+        assertInvalidEntry();
     }
 
     @Test
     public void testPrivateCacheExpireNoMaxAge() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         long start = System.currentTimeMillis();
         setExpires(makeDate(new Date(start + 2000)));
         setCacheControl("private");
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
+        assertValidEntry();
         sleepTill(start + 2010);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertInvalidEntry();
     }
 
     @Test
     public void testNoCache() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         setCacheControl("no-cache");
         cacheResult(sampleResultOK);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertInvalidEntry();
     }
 
     @Test
     public void testNoStore() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         setCacheControl("no-store");
         cacheResult(sampleResultOK);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
     }
+
+    @Test
+    public void testNoCachingHeadersBug64915() throws Exception {
+        this.cacheManager.setUseExpires(true);
+        this.cacheManager.testIterationStart(null);
+        assertNoSuchEntry();
+        cacheResult(sampleResultOK, false);
+        assertNoSuchEntry();
+    }
+
 
     @Test
     public void testCacheHttpClientBug51932() throws Exception {
         this.cacheManager.setUseExpires(true);
         this.cacheManager.testIterationStart(null);
-        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
-        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
+        assertNoSuchEntry();
         long start = System.currentTimeMillis();
         setExpires(makeDate(new Date(start)));
         setCacheControl("public, max-age=1, no-transform");
         cacheResult(sampleResultOK);
+        assertValidEntry();
+        sleepTill(start + 2010);
+        assertInvalidEntry();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void assertInvalidEntry() throws Exception {
+        CacheEntry cachedEntry = getThreadCacheEntry(LOCAL_HOST);
+        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
+        assertFalse(this.cacheManager.inCache(url), "Should not find valid entry. Found: " + cachedEntry + " at " + System.currentTimeMillis());
+    }
+
+    @SuppressWarnings("deprecation")
+    private void assertValidEntry() throws Exception {
         assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
         assertTrue(this.cacheManager.inCache(url), "Should find valid entry");
-        sleepTill(start + 1010);
-        assertNotNull(getThreadCacheEntry(LOCAL_HOST), "Should find entry");
+    }
+
+    @SuppressWarnings("deprecation")
+    private void assertNoSuchEntry() throws Exception {
+        assertNull(getThreadCacheEntry(LOCAL_HOST), "Should not find entry");
         assertFalse(this.cacheManager.inCache(url), "Should not find valid entry");
     }
 

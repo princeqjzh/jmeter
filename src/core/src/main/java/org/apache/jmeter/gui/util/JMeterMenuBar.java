@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 
@@ -104,12 +103,12 @@ public class JMeterMenuBar extends JMenuBar implements LocaleChangeListener {
 
     public JMeterMenuBar() {
         // List for recent files menu items
-        fileLoadRecentFiles = new LinkedList<>();
+        fileLoadRecentFiles = new ArrayList<>();
         // Lists for remote engines menu items
-        remoteEngineStart = new LinkedList<>();
-        remoteEngineStop = new LinkedList<>();
-        remoteEngineShut = new LinkedList<>();
-        remoteEngineExit = new LinkedList<>();
+        remoteEngineStart = new ArrayList<>();
+        remoteEngineStop = new ArrayList<>();
+        remoteEngineShut = new ArrayList<>();
+        remoteEngineExit = new ArrayList<>();
         remoteHosts = JOrphanUtils.split(JMeterUtils.getPropDefault("remote_hosts", ""), ","); //$NON-NLS-1$
         if (remoteHosts.length == 1 && remoteHosts[0].isEmpty()) {
             remoteHosts = new String[0];
@@ -233,8 +232,12 @@ public class JMeterMenuBar extends JMenuBar implements LocaleChangeListener {
                         MenuCreator creator = (MenuCreator) commandClass.getDeclaredConstructor().newInstance();
                         creators.add(creator);
                     }
+                } catch (NoClassDefFoundError e) {
+                    log.error("Exception registering implementation: [{}] of interface: [{}], a dependency used by the plugin class is missing",
+                            strClassName, MenuCreator.class, e);
                 } catch (Exception e) {
-                    log.error("Exception registering {} with implementation: {}", MenuCreator.class, strClassName, e);
+                    log.error("Exception registering implementation: [{}] of interface: [{}], a jar is probably missing",
+                            strClassName, MenuCreator.class, e);
                 }
             }
         } catch (IOException e) {
@@ -404,6 +407,7 @@ public class JMeterMenuBar extends JMenuBar implements LocaleChangeListener {
         lang.add(Locale.JAPANESE.toString()); // ja
         lang.add(Locale.SIMPLIFIED_CHINESE.toString()); // zh_CN
         lang.add(Locale.TRADITIONAL_CHINESE.toString()); // zh_TW
+        lang.add(Locale.KOREAN.toString()); // ko
         final String addedLocales = JMeterUtils.getProperty("locales.add");
         if (addedLocales != null) {
             Arrays.stream(addedLocales.split(","))

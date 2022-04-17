@@ -100,7 +100,7 @@ public class IfController extends GenericController implements Serializable, Thr
                 , "<cmd>", 1, null);
                 result = computeResultFromString(condition, Context.toString(cxResultObject));
             } catch (Exception e) {
-                log.error("{}: error while processing "+ "[{}]", testElementName, condition, e);
+                log.error("{}: error while processing [{}]", testElementName, condition, e);
             } finally {
                 Context.exit();
             }
@@ -203,6 +203,7 @@ public class IfController extends GenericController implements Serializable, Thr
 
 
     private static boolean evaluateExpression(String cond) {
+        log.debug("    >> evaluate Expression [{}] equals (ignoring case) 'true'", cond);
         return cond.equalsIgnoreCase("true"); // $NON-NLS-1$
     }
 
